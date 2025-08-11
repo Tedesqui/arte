@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ARte no Mundo - Crie e Explore</title>
     
-    <!-- Incluindo as bibliotecas A-Frame e AR.js -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
@@ -37,7 +36,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- NOVOS ESTILOS PARA A INTERFACE DE DESENHO --- */
+        /* --- ESTILOS PARA A INTERFACE DE DESENHO --- */
         #drawing-ui {
             position: fixed;
             top: 0; left: 0;
@@ -45,6 +44,7 @@
             display: none; /* Inicia escondido */
             flex-direction: column;
             z-index: 9998;
+            background-color: rgba(0,0,0,0.5); /* Fundo semi-transparente para focar no desenho */
         }
         #drawing-canvas {
             position: absolute;
@@ -101,7 +101,6 @@
         <p>Aguardando sua localização...<br>Por favor, autorize o uso da câmera e do GPS para visualizar as artes ao seu redor.</p>
     </div>
 
-    <!-- Interface de Desenho -->
     <div id="drawing-ui">
         <div id="toolbar">
             <label for="color-picker">Cor:</label>
@@ -134,8 +133,7 @@
             const canvas = document.getElementById('drawing-canvas');
             const ctx = canvas.getContext('2d');
             let isDrawing = false;
-
-            // --- LÓGICA DA INTERFACE DE DESENHO ---
+            let initialArtLoaded = false; // // --- LÓGICA DA INTERFACE DE DESENHO ---
             const setupDrawingCanvas = () => {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
@@ -154,6 +152,7 @@
 
             const draw = (e) => {
                 if (!isDrawing) return;
+                e.preventDefault(); // Evita comportamento padrão do browser (como scroll)
                 const pos = getMousePos(e);
                 ctx.lineTo(pos.x, pos.y);
                 ctx.stroke();
@@ -181,8 +180,8 @@
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
-            canvas.addEventListener('touchstart', startDrawing);
-            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchstart', startDrawing, { passive: false });
+            canvas.addEventListener('touchmove', draw, { passive: false });
             canvas.addEventListener('touchend', stopDrawing);
 
             // --- CONTROLES DA UI ---
@@ -198,7 +197,7 @@
 
             // --- LÓGICA DE REALIDADE AUMENTADA E PERSISTÊNCIA ---
             const preloadedArtworks = [
-                // ... (mantém os modelos 3D pré-carregados)
+                // Adicione seus modelos 3D pré-carregados aqui se desejar
                 { name: "Estátua Flutuante", model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/astronaut.glb?v=1698348788583", scale: "15 15 15", info: "Um astronauta explorando o MASP.", latitude: -23.56135, longitude: -46.65647, altitude: 20 },
                 { name: "Portal Mágico no Céu", model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/portal.glb?v=1698348790380", scale: "20 20 20", info: "Um portal para outra dimensão.", latitude: -21.1319, longitude: -42.3683, altitude: 150 }
             ];
@@ -218,25 +217,46 @@
                 entity.setAttribute('gltf-model', `url(${artwork.model})`);
                 entity.setAttribute('scale', artwork.scale);
                 entity.setAttribute('animation-mixer', '');
-                entity.object3D.position.y = artwork.altitude;
-                scene.appendChild(entity);
+                // A altitude é melhor controlada com a posição Y do objeto filho
+                const modelHolder = document.createElement('a-entity');
+                modelHolder.object3D.position.y = artwork.altitude || 0;
+                modelHolder.appendChild(entity);
+                scene.appendChild(modelHolder);
             };
 
-            const addDrawingToScene = (artwork) => {
-                const entity = document.createElement('a-plane');
-                entity.setAttribute('gps-new-entity-place', { latitude: artwork.latitude, longitude: artwork.longitude });
-                entity.setAttribute('look-at', '[gps-new-camera]');
-                entity.setAttribute('material', `src: ${artwork.dataURL}; transparent: true;`);
-                
-                // Ajusta o tamanho do plano baseado no tamanho da tela em que foi desenhado
-                const scale = 20; // Fator de escala base
+            // const addDrawingToScene = (artwork) => {
+                // 1. Cria uma âncora invisível na localização GPS
+                const anchor = document.createElement('a-entity');
+                anchor.setAttribute('gps-new-entity-place', {
+                    latitude: artwork.latitude,
+                    longitude: artwork.longitude
+                });
+
+                // 2. Cria o plano visível com o desenho
+                const plane = document.createElement('a-plane');
+                plane.setAttribute('material', `src: ${artwork.dataURL}; transparent: true; shader: flat;`);
+                plane.setAttribute('look-at', '[gps-new-camera]');
+
+                // Ajusta o tamanho do plano para manter a proporção
+                const scale = 15; // Fator de escala base (quão grande a arte aparece no mundo)
                 const ratio = artwork.width / artwork.height;
-                entity.setAttribute('scale', `${scale * ratio} ${scale} 1`);
+                plane.setAttribute('scale', `${scale * ratio} ${scale} 1`);
                 
-                scene.appendChild(entity);
+                // 3. Posiciona o plano na frente do ponto de âncora (e um pouco acima do chão)
+                // Isso faz a arte aparecer a 7 metros de distância do ponto onde foi criada
+                plane.setAttribute('position', '0 1.6 -7');
+
+                // 4. Anexa o plano à âncora, e a âncora à cena
+                anchor.appendChild(plane);
+                scene.appendChild(anchor);
             };
 
             function saveAndPlaceArt() {
+                if (!canvas.toDataURL().includes('image/png')) {
+                    alert('Nada para salvar! Desenhe algo primeiro.');
+                    return;
+                }
+
                 navigator.geolocation.getCurrentPosition(position => {
                     const { latitude, longitude } = position.coords;
                     const dataURL = canvas.toDataURL('image/png');
@@ -261,16 +281,21 @@
                     // Limpa e esconde a UI de desenho
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     drawingUI.style.display = 'none';
-                    alert('Sua arte foi salva no mundo!');
+                    alert('Sua arte foi salva no mundo! 🌍');
 
                 }, (error) => {
                     console.error("Erro ao obter localização para salvar arte:", error);
-                    alert("Não foi possível obter sua localização para salvar a arte. Tente novamente.");
+                    alert("Não foi possível obter sua localização para salvar a arte. Verifique as permissões do GPS e tente novamente.");
                 });
             }
 
-            // Inicia o carregamento das artes
-            loadArtworks();
+            // // scene.addEventListener('gps-camera-update-position', () => {
+                if (!initialArtLoaded) {
+                    console.log("GPS pronto. Carregando artes...");
+                    loadArtworks();
+                    initialArtLoaded = true;
+                }
+            });
             
             scene.addEventListener('renderstart', () => {
                 document.getElementById('loader-container').style.display = 'none';
