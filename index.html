@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ARte no Mundo - Galeria de Realidade Aumentada</title>
+    
+    <!-- Incluindo as bibliotecas A-Frame e AR.js -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #111;
+            color: white;
+        }
+
+        /* Estilo para a tela de carregamento e instruções */
+        #loader-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #loader-container h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        #loader-container p {
+            font-size: 1.2em;
+            line-height: 1.6;
+            max-width: 600px;
+            margin-bottom: 30px;
+        }
+
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #00aaff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.5s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilo para o botão de adicionar arte (funcionalidade futura) */
+        #add-art-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #00aaff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 30px;
+            line-height: 60px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            z-index: 9999;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Tela de Carregamento -->
+    <div id="loader-container">
+        <div class="spinner"></div>
+        <h1>ARte no Mundo</h1>
+        <p>Aguardando sua localização...<br>Por favor, autorize o uso da câmera e do GPS para visualizar as artes ao seu redor.</p>
+    </div>
+
+    <!-- Botão para futura funcionalidade de adicionar arte -->
+    <div id="add-art-button" title="Adicionar nova arte (Em breve)">+</div>
+
+    <!-- Cena de Realidade Aumentada com A-Frame -->
+    <!-- 'gps-camera' usa o GPS do dispositivo -->
+    <!-- 'rotation-reader' lê a orientação do dispositivo para saber para onde você está olhando -->
+    <a-scene
+        vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
+        renderer="antialias: true; alpha: true"
+    >
+        <a-camera gps-new-camera="gpsMinDistance: 5"></a-camera>
+    </a-scene>
+
+    <script>
+        window.onload = () => {
+            const scene = document.querySelector('a-scene');
+
+            // --- BANCO DE DADOS SIMULADO ---
+            // Em uma aplicação real, estes dados viriam de um servidor.
+            // Adicionei locais em cidades brasileiras como exemplo.
+            const artworks = [
+                {
+                    name: "Estátua Flutuante",
+                    model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/astronaut.glb?v=1698348788583",
+                    scale: "15 15 15",
+                    info: "Um astronauta explorando o MASP.",
+                    // Coordenadas do MASP em São Paulo
+                    latitude: -23.56135,
+                    longitude: -46.65647,
+                    altitude: 20 // Altitude em metros acima do chão
+                },
+                {
+                    name: "Cristo Redentor Futurista",
+                    model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/robot.glb?v=1698348792832",
+                    scale: "0.5 0.5 0.5",
+                    info: "Um guardião robótico no Corcovado.",
+                    // Coordenadas do Cristo Redentor no Rio de Janeiro
+                    latitude: -22.9519,
+                    longitude: -43.2105,
+                    altitude: 15
+                },
+                {
+                    name: "Portal Mágico no Céu",
+                    model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/portal.glb?v=1698348790380",
+                    scale: "20 20 20",
+                    info: "Um portal para outra dimensão sobre a cidade.",
+                    // Coordenadas do centro de Muriaé, MG
+                    latitude: -21.1319,
+                    longitude: -42.3683,
+                    altitude: 150 // Altitude elevada para parecer que está no céu
+                },
+                {
+                    name: "Coração de Neon",
+                    model: "https://cdn.glitch.global/e72f3d2e-1c75-4399-a356-834d4347495a/heart.glb?v=1698348789518",
+                    scale: "10 10 10",
+                    info: "Arte de rua digital.",
+                    // Coordenadas da Praça da Liberdade em Belo Horizonte
+                    latitude: -19.9328,
+                    longitude: -43.9357,
+                    altitude: 10
+                }
+            ];
+
+            // Função para adicionar dinamicamente as artes na cena
+            const addArtworksToScene = () => {
+                artworks.forEach(artwork => {
+                    const entity = document.createElement('a-entity');
+                    entity.setAttribute('gps-new-entity-place', {
+                        latitude: artwork.latitude,
+                        longitude: artwork.longitude
+                    });
+                    
+                    // Configura o modelo 3D
+                    entity.setAttribute('gltf-model', `url(${artwork.model})`);
+                    entity.setAttribute('scale', artwork.scale);
+                    entity.setAttribute('rotation', '0 0 0'); // Rotação inicial
+                    entity.setAttribute('animation-mixer', ''); // Inicia animações do modelo, se houver
+                    
+                    // Adiciona a altitude manualmente
+                    entity.object3D.position.y = artwork.altitude;
+
+                    // Adiciona um texto informativo que aparece abaixo da arte
+                    const textEntity = document.createElement('a-text');
+                    textEntity.setAttribute('value', `${artwork.name}\n${artwork.info}`);
+                    textEntity.setAttribute('look-at', '[gps-new-camera]');
+                    textEntity.setAttribute('scale', '15 15 15');
+                    textEntity.setAttribute('align', 'center');
+                    textEntity.setAttribute('position', '0 -5 0'); // Posição relativa ao modelo
+                    entity.appendChild(textEntity);
+
+                    scene.appendChild(entity);
+                });
+            };
+
+            // Adiciona as artes à cena
+            addArtworksToScene();
+            
+            // Remove a tela de carregamento quando a câmera estiver pronta
+            scene.addEventListener('renderstart', () => {
+                const loader = document.getElementById('loader-container');
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+            });
+        };
+    </script>
+</body>
+</html>
