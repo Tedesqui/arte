@@ -6,33 +6,38 @@
   <title>AR Graffiti - Login</title>
   <style>
     body, html { height:100%; margin:0; background:#121212; color:#fff; font-family:system-ui, Arial; display: flex; justify-content: center; align-items: center; text-align: center; }
-    #container { background: #242424; padding: 30px; border-radius: 8px; width: 300px; }
+    #container { background: #242424; padding: 30px; border-radius: 12px; width: 90%; max-width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    h1 { margin-top: 0; }
     #loginBox { display:flex; flex-direction:column; gap:10px; }
     #btns { margin-top:15px; display:flex; gap:10px; }
-    input { padding: 10px; border-radius: 5px; border: 1px solid #444; background: #333; color: white; }
-    button { flex-grow: 1; padding: 10px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
-    #status { margin-top: 15px; color: #aaa; min-height: 20px; }
+    input { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #333; color: white; font-size: 16px; }
+    button { flex-grow: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; background-color: #007aff; color: white; transition: background-color 0.2s; }
+    button:hover { background-color: #0056b3; }
+    #btnRegister { background-color: #333; border: 1px solid #555; }
+    #btnRegister:hover { background-color: #444; }
+    #status { margin-top: 15px; color: #aaa; min-height: 20px; font-size: 14px; }
   </style>
 </head>
 <body>
+
   <div id="container">
     <h1>AR Graffiti</h1>
     <div id="loginBox">
-      <input id="email" type="email" placeholder="seu@email.com" />
-      <input id="password" type="password" placeholder="senha" />
+      <input id="email" type="email" placeholder="E-mail" autocomplete="email" />
+      <input id="password" type="password" placeholder="Senha" autocomplete="current-password" />
       <div id="btns">
         <button id="btnLogin">Entrar</button>
         <button id="btnRegister">Criar conta</button>
       </div>
     </div>
-    <div id="status"></div>
+    <div id="status">Por favor, faça o login para continuar.</div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // --- COLE SUAS CHAVES DO FIREBASE AQUI ---
       const firebaseConfig = {
         apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
         authDomain: "tomorrow-art-2694d.firebaseapp.com",
@@ -42,41 +47,30 @@
         appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
         measurementId: "G-DNJKP24S8K"
       };
+
       firebase.initializeApp(firebaseConfig);
       const auth = firebase.auth();
       const statusEl = document.getElementById('status');
 
-      // Se o usuário já estiver logado, redireciona imediatamente
       auth.onAuthStateChanged(user => {
         if (user) {
           statusEl.textContent = 'Login bem-sucedido! Redirecionando...';
-          // Redireciona para a página de AR
           window.location.href = 'ar.html';
         }
       });
 
       document.getElementById('btnLogin').addEventListener('click', async () => {
-        const email = document.getElementById("email").value;
-        const pass = document.getElementById("password").value;
+        const email = document.getElementById("email").value; const pass = document.getElementById("password").value;
+        if (!email || !pass) { statusEl.textContent = 'Por favor, preencha ambos os campos.'; return; }
         statusEl.textContent = 'Entrando...';
-        try {
-          await auth.signInWithEmailAndPassword(email, pass);
-          // O onAuthStateChanged vai cuidar do redirecionamento
-        } catch(e) {
-          statusEl.textContent = `Erro: ${e.message}`;
-        }
+        try { await auth.signInWithEmailAndPassword(email, pass); } catch(e) { statusEl.textContent = `Erro: Credenciais inválidas.`; }
       });
 
       document.getElementById('btnRegister').addEventListener('click', async () => {
-        const email = document.getElementById("email").value;
-        const pass = document.getElementById("password").value;
+        const email = document.getElementById("email").value; const pass = document.getElementById("password").value;
+        if (!email || !pass) { statusEl.textContent = 'Por favor, preencha ambos os campos.'; return; }
         statusEl.textContent = 'Criando conta...';
-        try {
-          await auth.createUserWithEmailAndPassword(email, pass);
-          // O onAuthStateChanged vai cuidar do redirecionamento
-        } catch(e) {
-          statusEl.textContent = `Erro: ${e.message}`;
-        }
+        try { await auth.createUserWithEmailAndPassword(email, pass); } catch(e) { statusEl.textContent = `Erro ao criar conta.`; }
       });
     });
   </script>
