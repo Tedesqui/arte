@@ -104,17 +104,12 @@
       controls.classList.remove('hidden');
       userEmail.textContent = user.email;
       statusEl.textContent = 'Logado. Clique em "ENTER AR" para começar.';
-      
-      // --- CORREÇÃO: Inicializa o Three.js e o botão de AR SOMENTE APÓS O LOGIN ---
-      initThree(); 
-
     } else {
       loginBox.classList.remove('hidden');
       userInfo.classList.add('hidden');
       controls.classList.add('hidden');
-      // Remove o botão de AR se o usuário deslogar
       const arButton = document.getElementById('ARButton');
-      if (arButton) arButton.remove();
+      if (arButton) arButton.style.display = 'none'; // Esconde o botão se deslogar
     }
   });
   document.getElementById('btnLogin').onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.signInWithEmailAndPassword(e,t)}catch(e){alert("Erro login: "+e.message)}};document.getElementById("btnRegister").onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.createUserWithEmailAndPassword(e,t),alert("Conta criada, você está logado.")}catch(e){alert("Erro registrar: "+e.message)}};document.getElementById("btnLogout").onclick=()=>auth.signOut();
@@ -134,7 +129,7 @@
 
   const threeContainer = document.getElementById('threeContainer');
   
-  // A inicialização agora é uma função que chamamos quando queremos
+  // A inicialização agora acontece assim que o script carrega
   function initThree(){
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -148,10 +143,20 @@
     renderer.xr.enabled = true;
     threeContainer.appendChild(renderer.domElement);
 
-    // --- CORREÇÃO: O botão é criado e adicionado aqui, de forma visível ---
-    document.body.appendChild(THREE.ARButton.createButton(renderer, {
+    // --- CORREÇÃO: O botão é criado e adicionado diretamente. Ele se mostrará se o WebXR for compatível. ---
+    const arButton = THREE.ARButton.createButton(renderer, {
       requiredFeatures: ['hit-test', 'anchors']
-    }));
+    });
+    document.body.appendChild(arButton);
+    if(auth.currentUser === null) arButton.style.display = 'none'; // Garante que ele comece escondido se não houver usuário
+
+    auth.onAuthStateChanged(user => {
+        if(user) {
+            arButton.style.display = 'block'; // Mostra o botão ao logar
+        } else {
+            arButton.style.display = 'none'; // Esconde ao deslogar
+        }
+    });
     
     const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
     const ringMat = new THREE.MeshBasicMaterial();
@@ -175,12 +180,9 @@
     });
 
     renderer.xr.addEventListener('sessionend', () => {
-        ui.classList.remove('hidden'); // Mostra a UI de novo ao sair
+        ui.classList.remove('hidden'); 
         canvas2d.style.display = 'none';
         hitTestSource = null;
-        // Remove o botão de AR, pois o usuário deslogado não deve vê-lo
-        const arButton = document.getElementById('ARButton');
-        if (arButton) arButton.remove();
     });
 
     renderer.setAnimationLoop(animate);
@@ -212,7 +214,7 @@
     const geom = new THREE.PlaneGeometry(width, height);
     const mesh = new THREE.Mesh(geom, material);
     
-    mesh.matrix.copy(reticle.matrix); // Pega a posição e rotação do anel de mira
+    mesh.matrix.copy(reticle.matrix);
     mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
     scene.add(mesh);
 
@@ -270,8 +272,11 @@
   }
   
   document.getElementById('btnSave').onclick = ()=>{
-    alert('Para salvar, desenhe algo no canvas e depois toque numa superfície plana no mundo real (onde o anel branco aparece) para posicionar sua arte.');
+    alert('Para salvar, desenhe algo na tela e depois toque numa superfície plana no mundo real (onde o anel branco aparece) para posicionar sua arte.');
   }
+
+  // Inicia o Three.js assim que o script principal é lido
+  initThree();
 
   </script>
 </body>
