@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ARte no Mundo - Crie e Explore</title>
-    
+
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-    
+
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-        
+
         #debug-panel {
             position: fixed;
             bottom: 10px;
@@ -37,7 +37,7 @@
             justify-content: center; align-items: center; z-index: 10002;
         }
         .spinner{border:8px solid #f3f3f3;border-top:8px solid #00aaff;border-radius:50%;width:60px;height:60px;animation:spin 1.5s linear infinite}@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-        
+
         #drawing-ui{display:none;position:fixed;top:0;left:0;width:100%;height:100%;flex-direction:column;background-color:rgba(0,0,0,.5);z-index:10000}
         #drawing-canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;z-index:1}
         #toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);background-color:rgba(0,0,0,.7);padding:10px;border-radius:10px;display:flex;gap:15px;align-items:center;z-index:10}
@@ -66,7 +66,7 @@
             <button id="cancel-draw-btn" class="draw-btn">Cancelar</button>
         </div>
     </div>
-    
+
     <button id="toggle-draw-mode-btn">🖌️</button>
 
     <a-scene id="ar-scene" vr-mode-ui="enabled: false" arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;" renderer="antialias: true; alpha: true">
@@ -101,11 +101,11 @@
                     initialArtLoaded = true;
                 }
             });
-            
+
             function loadSavedArtworks() {
                 const savedDrawings = JSON.parse(localStorage.getItem('userDrawings') || '[]');
                 debugArtLoaded.textContent = 'Não';
-                document.querySelectorAll('.user-art').forEach(art => art.remove()); 
+                document.querySelectorAll('.user-art').forEach(art => art.remove()); // Limpa artes antigas antes de recarregar
                 if (savedDrawings.length > 0) {
                     savedDrawings.forEach(addDrawingToScene);
                     debugArtLoaded.textContent = `Sim (${savedDrawings.length})`;
@@ -123,7 +123,7 @@
                 anchor.classList.add('user-art');
 
                 const plane = document.createElement('a-plane');
-                plane.setAttribute('look-at', '[gps-new-camera]');
+                // A linha 'look-at' foi removida para que a arte fique estática no mundo
                 plane.setAttribute('material', `src: ${artwork.dataURL}; transparent: true; shader: flat;`);
                 
                 const scale = 15;
@@ -172,11 +172,71 @@
             });
             document.getElementById('save-art-btn').addEventListener('click', saveAndPlaceArt);
 
-            const canvas=document.getElementById("drawing-canvas"),ctx=canvas.getContext("2d");let isDrawing=!1;const setupDrawingCanvas=()=>{canvas.width=window.innerWidth,canvas.height=window.innerHeight,ctx.strokeStyle=document.getElementById("color-picker").value,ctx.lineWidth=document.getElementById("brush-size").value,ctx.lineCap="round",ctx.lineJoin="round"},startDrawing=e=>{isDrawing=!0;const t=getMousePos(e);ctx.beginPath(),ctx.moveTo(t.x,t.y)},draw=e=>{isDrawing&&(e.preventDefault(),e.stopPropagation(),ctx.lineTo(getMousePos(e).x,getMousePos(e).y),ctx.stroke())},stopDrawing=()=>{isDrawing=!1,ctx.closePath()},getMousePos=e=>{const t=canvas.getBoundingClientRect(),o=e.clientX||e.touches[0].clientX,n=e.clientY||e.touches[0].clientY;return{x:o-t.left,y:n-t.top}};
-            document.getElementById("color-picker").onchange=e=>ctx.strokeStyle=e.target.value,document.getElementById("brush-size").oninput=e=>ctx.lineWidth=e.target.value,canvas.addEventListener("mousedown",startDrawing),canvas.addEventListener("mousemove",draw),canvas.addEventListener("mouseup",stopDrawing),canvas.addEventListener("mouseout",stopDrawing),canvas.addEventListener("touchstart",startDrawing,{passive:!1}),canvas.addEventListener("touchmove",draw,{passive:!1}),canvas.addEventListener("touchend",stopDrawing);
+            // Funções auxiliares de desenho (código completo)
+            const canvas = document.getElementById("drawing-canvas");
+            const ctx = canvas.getContext("2d");
+            let isDrawing = false;
+            
+            const setupDrawingCanvas = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                ctx.strokeStyle = document.getElementById("color-picker").value;
+                ctx.lineWidth = document.getElementById("brush-size").value;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            };
+
+            const startDrawing = (e) => {
+                isDrawing = true;
+                const t = getMousePos(e);
+                ctx.beginPath();
+                ctx.moveTo(t.x, t.y);
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                e.stopPropagation();
+                ctx.lineTo(getMousePos(e).x, getMousePos(e).y);
+                ctx.stroke();
+            };
+
+            const stopDrawing = () => {
+                isDrawing = false;
+                ctx.closePath();
+            };
+
+            const getMousePos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.clientX || e.touches[0].clientX;
+                const clientY = e.clientY || e.touches[0].clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            };
+            
+            document.getElementById("color-picker").onchange = (e) => ctx.strokeStyle = e.target.value;
+            document.getElementById("brush-size").oninput = (e) => ctx.lineWidth = e.target.value;
+            
+            canvas.addEventListener("mousedown", startDrawing);
+            canvas.addEventListener("mousemove", draw);
+            canvas.addEventListener("mouseup", stopDrawing);
+            canvas.addEventListener("mouseout", stopDrawing);
+            canvas.addEventListener("touchstart", startDrawing, { passive: false });
+            canvas.addEventListener("touchmove", draw, { passive: false });
+            canvas.addEventListener("touchend", stopDrawing);
         });
 
-        document.addEventListener('DOMContentLoaded',function(){const e=document.querySelector("a-scene");e&&e.addEventListener("loaded",function(){const t=document.querySelector(".a-enter-vr");t&&(t.style.display="none")})});
+        // Script extra para remover o botão de VR
+        document.addEventListener('DOMContentLoaded', function() {
+            const scene = document.querySelector("a-scene");
+            if (scene) {
+                scene.addEventListener("loaded", function() {
+                    const vrButton = document.querySelector(".a-enter-vr");
+                    if (vrButton) {
+                        vrButton.style.display = "none";
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>
