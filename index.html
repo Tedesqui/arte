@@ -3,31 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARte no Mundo - Grafite em Qualquer Superfície</title>
-    
+    <title>ARte no Mundo - Simplificado</title>
+
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-environment-component@1.3.3/dist/aframe-environment-component.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-        
-        #ar-button {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            font-size: 18px;
-            background-color: #007aff;
-            color: white;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            z-index: 10001;
-        }
 
-        /* A UI de desenho 2D agora é um pop-up */
+        /* Pop-up de desenho */
         #drawing-container {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -40,41 +24,52 @@
         #drawing-panel {
             background-color: white;
             border-radius: 15px;
-            padding: 10px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
         }
-        #drawing-canvas { border: 1px solid #ccc; touch-action: none; }
-        #toolbar { display: flex; gap: 10px; align-items: center; }
-        .draw-btn { padding: 8px 16px; border-radius: 8px; border: none; color: white; cursor: pointer; }
+        #paint-canvas { border: 1px solid #ccc; touch-action: none; }
+        #toolbar { display: flex; gap: 15px; align-items: center; }
+        .draw-btn { padding: 10px 20px; border-radius: 8px; border: none; color: white; cursor: pointer; }
         #confirm-draw-btn { background-color: #28a745; }
         #cancel-draw-btn { background-color: #dc3545; }
+        #brush-size { width: 150px; }
+
+        /* Botão para abrir a tela de desenho */
+        #open-draw-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #00aaff;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 32px;
+            line-height: 60px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,.4);
+            cursor: pointer;
+            z-index: 10001;
+        }
     </style>
 </head>
 
 <body>
     <a-scene 
-        id="ar-scene"
-        webxr="optionalFeatures: hit-test, plane-detection, dom-overlay; overlayElement: #ar-overlay;"
-        ar-hit-test="target: #reticle;"
-        renderer="colorManagement: true"
+        id="ar-scene" 
+        vr-mode-ui="enabled: false" 
+        arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;" 
+        renderer="antialias: true; alpha: true"
     >
-        <a-assets>
-            <canvas id="drawing-canvas" width="300" height="300"></canvas>
-        </a-assets>
-
-        <a-entity ar-plane-detection material="color: white; shader: flat; transparent: true; opacity: 0.25"></a-entity>
-        
-        <a-entity id="reticle" scale="0.8 0.8 0.8" visible="false">
-             <a-ring color="#007aff" radius-inner="0.3" radius-outer="0.4"></a-ring>
-        </a-entity>
-
+        <a-camera gps-new-camera="gpsMinDistance: 5; gpsMinAccuracy: 100;"></a-camera>
     </a-scene>
 
     <div id="ar-overlay">
-        <button id="ar-button">Iniciar AR</button>
+        <button id="open-draw-btn">🖌️</button>
         <div id="drawing-container">
             <div id="drawing-panel">
                 <canvas id="paint-canvas" width="300" height="300"></canvas>
@@ -90,147 +85,131 @@
         </div>
     </div>
 
-
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const sceneEl = document.querySelector('a-scene');
-        const arButton = document.getElementById('ar-button');
-        const drawingContainer = document.getElementById('drawing-container');
-        const reticle = document.getElementById('reticle');
-        
-        let currentArtTexture = null;
+        document.addEventListener('DOMContentLoaded', () => {
+            const sceneEl = document.querySelector('a-scene');
+            const openDrawBtn = document.getElementById('open-draw-btn');
+            const drawingContainer = document.getElementById('drawing-container');
+            const paintCanvas = document.getElementById('paint-canvas');
+            const paintCtx = paintCanvas.getContext('2d');
+            let isPainting = false;
 
-        // --- Lógica principal de entrada em AR ---
-        arButton.addEventListener('click', () => {
-            sceneEl.enterAR();
-        });
+            // --- Lógica de Desenho 2D ---
+            function startPaint(e) { isPainting = true; draw(e); }
+            function stopPaint() { isPainting = false; paintCtx.beginPath(); }
+            function draw(e) {
+                if (!isPainting) return;
+                e.preventDefault();
+                const rect = paintCanvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
+                const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
+                paintCtx.lineWidth = document.getElementById('brush-size').value;
+                paintCtx.lineCap = 'round';
+                paintCtx.strokeStyle = document.getElementById('color-picker').value;
+                paintCtx.lineTo(x, y);
+                paintCtx.stroke();
+                paintCtx.beginPath();
+                paintCtx.moveTo(x, y);
+            }
+            paintCanvas.addEventListener('mousedown', startPaint);
+            paintCanvas.addEventListener('mouseup', stopPaint);
+            paintCanvas.addEventListener('mousemove', draw);
+            paintCanvas.addEventListener('touchstart', startPaint, { passive: false });
+            paintCanvas.addEventListener('touchend', stopPaint);
+            paintCanvas.addEventListener('touchmove', draw, { passive: false });
 
-        sceneEl.addEventListener('enter-vr', () => {
-            arButton.style.display = 'none';
-            // Carrega artes salvas assim que a sessão AR começa
-            loadSavedArt();
-        });
-        
-        sceneEl.addEventListener('exit-vr', () => {
-            arButton.style.display = 'block';
-        });
+            // --- Controles da UI ---
+            openDrawBtn.addEventListener('click', () => {
+                paintCtx.fillStyle = 'white';
+                paintCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height); // Limpa com fundo branco
+                drawingContainer.style.display = 'flex';
+            });
+            document.getElementById('cancel-draw-btn').addEventListener('click', () => {
+                drawingContainer.style.display = 'none';
+            });
 
-        // Mostra o retículo quando o hit-test encontra uma superfície
-        sceneEl.addEventListener('ar-hit-test-start', () => reticle.setAttribute('visible', true));
-        sceneEl.addEventListener('ar-hit-test-stop', () => reticle.setAttribute('visible', false));
-        
-        // --- Lógica de Desenho 2D ---
-        const canvas = document.getElementById('paint-canvas');
-        const ctx = canvas.getContext('2d');
-        let isPainting = false;
+            document.getElementById('confirm-draw-btn').addEventListener('click', () => {
+                const textureData = paintCanvas.toDataURL();
+                drawingContainer.style.display = 'none';
+                
+                console.log("Tentando obter GPS para salvar a arte...");
+                navigator.geolocation.getCurrentPosition(position => {
+                    console.log("GPS obtido:", position.coords);
+                    placeAndSaveArt(textureData, position.coords.latitude, position.coords.longitude);
+                }, (error) => {
+                    console.error("Erro no GPS:", error);
+                    alert('Não foi possível obter a localização para salvar. Por favor, verifique as permissões e tente em um local aberto.');
+                });
+            });
 
-        function startPaint(e) { isPainting = true; draw(e); }
-        function stopPaint() { isPainting = false; ctx.beginPath(); }
-        function draw(e) {
-            if (!isPainting) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX || e.touches[0].clientX) - rect.left;
-            const y = (e.clientY || e.touches[0].clientY) - rect.top;
-            ctx.lineWidth = document.getElementById('brush-size').value;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = document.getElementById('color-picker').value;
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-        }
-        canvas.addEventListener('mousedown', startPaint);
-        canvas.addEventListener('mouseup', stopPaint);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('touchstart', startPaint);
-        canvas.addEventListener('touchend', stopPaint);
-        canvas.addEventListener('touchmove', draw);
+            function placeAndSaveArt(textureData, latitude, longitude) {
+                const artEntity = document.createElement('a-entity');
+                artEntity.setAttribute('gps-new-entity-place', { latitude: latitude, longitude: longitude });
+                
+                const plane = document.createElement('a-plane');
+                plane.setAttribute('material', { src: textureData, transparent: true, shader: 'flat' });
+                plane.setAttribute('width', 2);
+                plane.setAttribute('height', 2);
+                plane.setAttribute('position', '0 1.6 -5'); // Posiciona à frente da câmera no momento da criação
+                plane.setAttribute('look-at', '[gps-new-camera]'); // Faz a arte encarar o usuário
+                
+                artEntity.appendChild(plane);
+                sceneEl.appendChild(artEntity);
 
-        // --- Lógica da UI ---
-        const openDrawBtn = document.createElement('button');
-        openDrawBtn.textContent = '🖌️';
-        openDrawBtn.style.cssText = `position: fixed; bottom: 20px; right: 20px; background-color: #00aaff; color: #fff; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 32px; line-height: 60px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,.4); cursor: pointer; z-index: 10001;`;
-        document.body.appendChild(openDrawBtn);
-        openDrawBtn.addEventListener('click', () => {
-             ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa o canvas
-             drawingContainer.style.display = 'flex';
-        });
+                const artData = {
+                    gps: { lat: latitude, lon: longitude },
+                    texture: textureData
+                };
+                
+                const savedArt = JSON.parse(localStorage.getItem('simple_ar_art') || '[]');
+                savedArt.push(artData);
+                localStorage.setItem('simple_ar_art', JSON.stringify(savedArt));
+                alert('Arte posicionada e salva no mundo!');
+            }
 
-        document.getElementById('cancel-draw-btn').addEventListener('click', () => drawingContainer.style.display = 'none');
-        document.getElementById('confirm-draw-btn').addEventListener('click', () => {
-            const dataURL = canvas.toDataURL();
-            currentArtTexture = dataURL; // Armazena a arte desenhada
-            drawingContainer.style.display = 'none';
-            alert("Arte criada! Agora toque em uma superfície para posicioná-la.");
-        });
+            // Carrega artes salvas quando o GPS da câmera está pronto
+            sceneEl.camera.el.addEventListener('gps-camera-update-position', (e) => {
+                const currentLat = e.detail.position.latitude;
+                const currentLon = e.detail.position.longitude;
+                
+                // Limpa artes antigas para evitar duplicatas
+                document.querySelectorAll('.saved-art').forEach(art => art.remove());
 
-        // --- Lógica para Posicionar a Arte e Salvar ---
-        sceneEl.addEventListener('click', (e) => {
-            if (currentArtTexture && reticle.getAttribute('visible')) {
-                placeAndSaveArt(currentArtTexture);
-                currentArtTexture = null; // Reseta para não posicionar de novo
+                const savedArt = JSON.parse(localStorage.getItem('simple_ar_art') || '[]');
+                console.log(`Carregando ${savedArt.length} artes salvas.`);
+
+                savedArt.forEach(artData => {
+                    const dist = getDistance(currentLat, currentLon, artData.gps.lat, artData.gps.lon);
+                    // Carrega apenas artes próximas (raio de 5km)
+                    if (dist < 5) { 
+                        const artEntity = document.createElement('a-entity');
+                        artEntity.setAttribute('gps-new-entity-place', { latitude: artData.gps.lat, longitude: artData.gps.lon });
+                        artEntity.classList.add('saved-art');
+                        
+                        const plane = document.createElement('a-plane');
+                        plane.setAttribute('material', { src: artData.texture, transparent: true, shader: 'flat' });
+                        plane.setAttribute('width', 2);
+                        plane.setAttribute('height', 2);
+                        plane.setAttribute('position', '0 1.6 -5');
+                        plane.setAttribute('look-at', '[gps-new-camera]');
+
+                        artEntity.appendChild(plane);
+                        sceneEl.appendChild(artEntity);
+                    }
+                });
+            }, { once: true }); // Executa apenas uma vez para o carregamento inicial
+
+            // Função para calcular distância entre coordenadas GPS
+            function getDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; // Raio da Terra em km
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
             }
         });
-
-        function placeAndSaveArt(textureData) {
-             const plane = document.createElement('a-plane');
-             plane.setAttribute('src', textureData);
-             plane.setAttribute('width', 1);
-             plane.setAttribute('height', 1);
-             plane.setAttribute('rotation', reticle.object3D.rotation);
-             plane.setAttribute('position', reticle.object3D.position);
-             sceneEl.appendChild(plane);
-
-             // Salvar com GPS
-             navigator.geolocation.getCurrentPosition(position => {
-                 const artData = {
-                     gps: { lat: position.coords.latitude, lon: position.coords.longitude },
-                     pos: reticle.object3D.position,
-                     rot: { x: plane.object3D.rotation.x, y: plane.object3D.rotation.y, z: plane.object3D.rotation.z },
-                     texture: textureData
-                 };
-                 const savedArt = JSON.parse(localStorage.getItem('webxr_art') || '[]');
-                 savedArt.push(artData);
-                 localStorage.setItem('webxr_art', JSON.stringify(savedArt));
-                 alert('Arte posicionada e salva!');
-             }, () => alert('Não foi possível obter GPS para salvar a arte.'));
-        }
-
-        function loadSavedArt() {
-            navigator.geolocation.getCurrentPosition(position => {
-                 const currentLat = position.coords.latitude;
-                 const currentLon = position.coords.longitude;
-                 const savedArt = JSON.parse(localStorage.getItem('webxr_art') || '[]');
-
-                 // Carrega apenas artes próximas (dentro de um raio de ~5km)
-                 const nearbyArt = savedArt.filter(art => {
-                     const dist = getDistance(currentLat, currentLon, art.gps.lat, art.gps.lon);
-                     return dist < 5; 
-                 });
-
-                 nearbyArt.forEach(artData => {
-                     const plane = document.createElement('a-plane');
-                     plane.setAttribute('src', artData.texture);
-                     plane.setAttribute('width', 1);
-                     plane.setAttribute('height', 1);
-                     plane.setAttribute('position', artData.pos);
-                     plane.setAttribute('rotation', artData.rot);
-                     sceneEl.appendChild(plane);
-                 });
-            });
-        }
-        
-        // Função para calcular distância entre coordenadas GPS
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Raio da Terra em km
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-    });
     </script>
 </body>
 </html>
