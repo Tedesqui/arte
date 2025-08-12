@@ -1,171 +1,196 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>AR Graffiti</title>
-  <style>
-    html,body { height:100%; margin:0; background:#000; color:#fff; font-family:system-ui, Arial; }
-    #canvas2d { position:fixed; left:0; top:0; touch-action:none; z-index:2; display:none; }
-    #threeContainer { position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; }
-    /* --- NOSSO BOTÃO MANUAL --- */
-    #manual-ar-button {
-        position: fixed;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 10000;
-        background-color: #007aff;
-        color: white;
-        border: none;
-        border-radius: 30px;
-        padding: 15px 30px;
-        font-size: 20px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-    .hidden { display: none; }
-    /* UI do desenho */
-    #drawingUI { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; }
-    label{font-size:13px}
-    input[type=color]{width:40px;height:28px;padding:0;border:0}
-    input[type=range]{width:120px}
-    #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; padding: 8px 12px;}
-  </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>AR Graffiti - A-Frame</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        /* O botão de AR é gerado automaticamente pelo A-Frame */
+        .a-enter-ar-button {
+            bottom: 20px !important; top: unset !important;
+            left: 50% !important; transform: translateX(-50%) !important;
+            background-color: #007aff !important; border-radius: 30px !important;
+            position: fixed !important; z-index: 10000 !important;
+        }
+        #ui-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; }
+        .hidden { display: none; }
+        /* UI do desenho */
+        #drawing-ui { background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; pointer-events: auto; }
+        label { color: white; font-size: 13px; }
+        input[type=color] { width:40px; height:28px; padding:0; border:0; }
+        input[type=range] { width:120px; }
+        #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; pointer-events: auto; padding: 8px 12px; }
+        #toggle-draw-btn {
+            position: fixed; bottom: 20px; right: 20px; background-color: #00aaff; color: #fff; border: none;
+            border-radius: 50%; width: 60px; height: 60px; font-size: 32px; line-height: 60px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,.4); cursor: pointer; pointer-events: auto;
+        }
+    </style>
 </head>
 <body>
-  <button id="btnLogout">Sair</button>
-  
-  <button id="manual-ar-button" class="hidden">ENTRAR NA REALIDADE AUMENTADA</button>
+    <a-scene id="ar-scene"
+        webxr="requiredFeatures: hit-test;"
+        vr-mode-ui="enabled: false"
+        renderer="colorManagement: true">
+        
+        <a-assets>
+            <canvas id="paint-canvas" width="512" height="512" crossorigin="anonymous"></canvas>
+        </a-assets>
+        
+        <a-camera></a-camera>
+        <a-entity cursor="rayOrigin: mouse;" raycaster="objects: [ar-plane];"></a-entity>
+        
+        <a-entity id="reticle"
+            ar-hit-test="target: #reticle-plane"
+            visible="false">
+            <a-plane id="reticle-plane" position="0 0 0" width="1" height="1" material="src: none" visible="false"></a-plane>
+            <a-ring color="#007aff" radius-inner="0.15" radius-outer="0.2" rotation="-90 0 0"></a-ring>
+        </a-entity>
+    </a-scene>
 
-  <div id="drawingUI" class="hidden">
-    <label>Cor:</label>
-    <input id="colorPicker" type="color" value="#ff0000" />
-    <label>Espessura:</label>
-    <input id="thickness" type="range" min="1" max="60" value="6" />
-    <button id="btnClear">Limpar</button>
-  </div>
-  <canvas id="canvas2d"></canvas>
-  <div id="threeContainer"></div>
+    <div id="ui-overlay">
+        <button id="btnLogout">Sair</button>
+        <button id="toggle-draw-btn" class="hidden">🖌️</button>
+        <div id="drawing-ui" class="hidden">
+            <label>Cor:</label>
+            <input id="colorPicker" type="color" value="#ff0000" />
+            <label>Espessura:</label>
+            <input id="thickness" type="range" min="1" max="30" value="10" />
+            <button id="btnClear">Limpar</button>
+            <button id="btnPlaceArt">Posicionar</button>
+        </div>
+    </div>
 
-  <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const firebaseConfig = { /* ... Seus dados do Firebase ... */ };
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-    const storage = firebase.storage();
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const firebaseConfig = { /* ... Seus dados do Firebase ... */ };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
 
-    const manualArButton = document.getElementById('manual-ar-button');
+        const sceneEl = document.querySelector('a-scene');
+        const reticle = document.getElementById('reticle');
+        const toggleDrawBtn = document.getElementById('toggle-draw-btn');
+        const drawingUI = document.getElementById('drawingUI');
+        const paintCanvas = document.getElementById('paint-canvas');
+        const ctx = paintCanvas.getContext('2d');
+        let currentArtTexture = null;
 
-    // --- GUARDA DE AUTENTICAÇÃO ---
-    auth.onAuthStateChanged(user => {
-      if (!user) {
-        window.location.href = 'index.html';
-      } else {
-        // Usuário está logado, inicia a preparação da AR
-        initAR();
-      }
+        // --- GUARDA DE AUTENTICAÇÃO ---
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                window.location.href = 'index.html';
+            }
+        });
+
+        document.getElementById('btnLogout').addEventListener('click', () => auth.signOut());
+
+        // --- LÓGICA DA SESSÃO AR ---
+        sceneEl.addEventListener('enter-vr', () => {
+            toggleDrawBtn.classList.remove('hidden');
+            loadArts();
+        });
+
+        // --- LÓGICA DE DESENHO E UI ---
+        toggleDrawBtn.addEventListener('click', () => {
+            // Cria um canvas 2D temporário para desenhar
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.id = 'temp-drawing-canvas';
+            tempCanvas.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 10001; touch-action: none;';
+            document.body.appendChild(tempCanvas);
+
+            drawingUI.classList.remove('hidden');
+            toggleDrawBtn.classList.add('hidden');
+            
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = window.innerWidth;
+            tempCanvas.height = window.innerHeight;
+
+            let drawing = false;
+            const start = (e) => { drawing = true; draw(e); };
+            const stop = () => { drawing = false; tempCtx.beginPath(); };
+            const draw = (e) => {
+                if(!drawing) return; e.preventDefault();
+                const rect = tempCanvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const y = (e.clientY || e.touches[0].clientY) - rect.top;
+                tempCtx.lineWidth = document.getElementById('thickness').value;
+                tempCtx.lineCap = 'round';
+                tempCtx.strokeStyle = document.getElementById('colorPicker').value;
+                tempCtx.lineTo(x, y);
+                tempCtx.stroke(); tempCtx.beginPath(); tempCtx.moveTo(x, y);
+            };
+            tempCanvas.addEventListener('mousedown', start); tempCanvas.addEventListener('mouseup', stop); tempCanvas.addEventListener('mousemove', draw);
+            tempCanvas.addEventListener('touchstart', start, {passive: false}); tempCanvas.addEventListener('touchend', stop); tempCanvas.addEventListener('touchmove', draw, {passive: false});
+
+            document.getElementById('btnClear').onclick = () => tempCtx.clearRect(0,0,tempCanvas.width, tempCanvas.height);
+            
+            document.getElementById('btnPlaceArt').onclick = () => {
+                // Copia o desenho para o canvas do A-Frame Assets
+                ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+                ctx.drawImage(tempCanvas, 0, 0, paintCanvas.width, paintCanvas.height);
+                currentArtTexture = paintCanvas.toDataURL('image/png');
+                
+                // Limpa e esconde a UI de desenho
+                document.body.removeChild(tempCanvas);
+                drawingUI.classList.add('hidden');
+                toggleDrawBtn.classList.remove('hidden');
+                reticle.setAttribute('visible', true);
+            };
+        });
+        
+        // --- LÓGICA DE POSICIONAMENTO E SALVAMENTO ---
+        sceneEl.addEventListener('click', () => {
+            if (currentArtTexture && reticle.getAttribute('visible')) {
+                const position = reticle.getAttribute('position');
+                const rotation = reticle.getAttribute('rotation');
+                placeAndSaveArt(currentArtTexture, position, rotation);
+                currentArtTexture = null; // Reseta para não colocar de novo
+                reticle.setAttribute('visible', false); // Esconde o retículo
+            }
+        });
+
+        function placeAndSaveArt(texture, position, rotation) {
+            const plane = document.createElement('a-plane');
+            plane.setAttribute('material', `src: ${texture}; transparent: true; shader: flat;`);
+            plane.setAttribute('width', 1.5);
+            plane.setAttribute('height', 1.5);
+            plane.setAttribute('position', position);
+            plane.setAttribute('rotation', rotation);
+            sceneEl.appendChild(plane);
+
+            const user = auth.currentUser;
+            if (!user) return;
+
+            // Lógica de salvamento no Firebase (minificada)
+            const artData = {ownerUid: user.uid, texture, position, rotation, timestamp: firebase.firestore.FieldValue.serverTimestamp()};
+            const savedArt = JSON.parse(localStorage.getItem('aframe_art') || '[]'); savedArt.push(artData); localStorage.setItem('aframe_art', JSON.stringify(savedArt)); // Backup local
+            db.collection('arts-aframe').add(artData).then(() => console.log("Arte salva no Firebase")).catch(e => console.error("Erro ao salvar:", e));
+        }
+
+        function loadArts() {
+            db.collection('arts-aframe').orderBy('timestamp', 'desc').limit(20).get().then(snap => {
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const plane = document.createElement('a-plane');
+                    plane.setAttribute('material', `src: ${data.texture}; transparent: true; shader: flat;`);
+                    plane.setAttribute('width', 1.5);
+                    plane.setAttribute('height', 1.5);
+                    plane.setAttribute('position', data.position);
+                    plane.setAttribute('rotation', data.rotation);
+                    sceneEl.appendChild(plane);
+                });
+            });
+        }
     });
-
-    document.getElementById('btnLogout').onclick = () => auth.signOut();
-    
-    // O resto do código é a lógica da AR que já tínhamos
-    const canvas2d = document.getElementById('canvas2d');
-    const ctx = canvas2d.getContext('2d');
-    const drawingUI = document.getElementById('drawingUI');
-
-    // Funções de desenho (minificadas para economizar espaço)
-    function resizeCanvas(){canvas2d.width = window.innerWidth;canvas2d.height = window.innerHeight}
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-    let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
-
-    let camera, scene, renderer, reticle, controller, hitTestSource;
-
-    async function initAR() {
-      // Verifica a compatibilidade ANTES de mostrar o botão
-      if ('xr' in navigator) {
-        const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-        if (isSupported) {
-          manualArButton.classList.remove('hidden'); // Mostra nosso botão
-        } else {
-          alert('Seu dispositivo não suporta WebXR para AR.');
-        }
-      } else {
-        alert('Seu navegador não tem suporte a WebXR.');
-      }
-
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
-      
-      renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      document.getElementById('threeContainer').appendChild(renderer.domElement);
-
-      const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
-      reticle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial());
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
-
-      controller = renderer.xr.getController(0);
-      controller.addEventListener('select', onSelect);
-      scene.add(controller);
-
-      // --- CONTROLE MANUAL DA SESSÃO ---
-      manualArButton.addEventListener('click', async () => {
-        try {
-          const session = await navigator.xr.requestSession('immersive-ar', {
-            requiredFeatures: ['hit-test']
-          });
-          await renderer.xr.setSession(session);
-        } catch(e) {
-          alert("Falha ao iniciar a sessão de AR: " + e.message);
-        }
-      });
-
-      renderer.xr.addEventListener('sessionstart', async () => {
-          manualArButton.classList.add('hidden'); // Esconde o botão após iniciar
-          btnLogout.classList.add('hidden');
-          drawingUI.classList.remove('hidden');
-          canvas2d.style.display = 'block';
-          const session = renderer.xr.getSession();
-          const viewerSpace = await session.requestReferenceSpace('viewer');
-          hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-          loadArts();
-      });
-      renderer.xr.addEventListener('sessionend', () => window.location.reload());
-
-      renderer.setAnimationLoop(animate);
-    }
-
-    function animate(timestamp, frame){
-      if(frame && hitTestSource){
-        const referenceSpace = renderer.xr.getReferenceSpace();
-        const hitTestResults = frame.getHitTestResults(hitTestSource);
-        if(hitTestResults.length > 0){
-          const hit = hitTestResults[0];
-          reticle.visible = true;
-          reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-        } else { reticle.visible = false; }
-      }
-      renderer.render(scene, camera);
-    }
-    
-    // Funções onSelect, saveArt, loadArts (sem alterações)
-    function onSelect(){if(!reticle.visible)return;const e=new THREE.CanvasTexture(canvas2d),t=new THREE.MeshBasicMaterial({map:e,side:THREE.DoubleSide,transparent:!0,alphaTest:.5}),o=canvas2d.width/canvas2d.height,s=1.2,a=s*o,n=new THREE.PlaneGeometry(a,s),i=new THREE.Mesh(n,t);i.matrix.copy(reticle.matrix),i.matrix.decompose(i.position,i.quaternion,i.scale),scene.add(i),saveArt(i,a,s)}async function saveArt(e,t,o){const s=await new Promise(e=>canvas2d.toBlob(e,"image/png")),a=`arts/${Date.now()}.png`,n=storage.ref().child(a);try{const i=await n.put(s),r=await i.ref.getDownloadURL(),d=auth.currentUser,l={ownerUid:d.uid,imageURL:r,widthMeters:t,heightMeters:o,position:{x:e.position.x,y:e.position.y,z:e.position.z},quaternion:{x:e.quaternion.x,y:e.quaternion.y,z:e.quaternion.z,w:e.quaternion.w},timestamp:firebase.firestore.FieldValue.serverTimestamp()};await db.collection("arts").add(l),ctx.clearRect(0,0,canvas2d.width,canvas2d.height)}catch(e){console.error(e)}}async function loadArts(){try{const e=await db.collection("arts").orderBy("timestamp","desc").limit(20).get();e.forEach(e=>{const t=e.data(),o=new THREE.TextureLoader;o.load(t.imageURL,e=>{const o=new THREE.MeshBasicMaterial({map:e,side:THREE.DoubleSide,transparent:!0,alphaTest:.5}),s=new THREE.PlaneGeometry(t.widthMeters,t.heightMeters),a=new THREE.Mesh(s,o);a.position.set(t.position.x,t.position.y,t.position.z),a.quaternion.set(t.quaternion.x,t.quaternion.y,t.quaternion.z,t.quaternion.w),scene.add(a)})})}catch(e){console.error("Erro ao carregar artes:",e)}}
-
-  });
-  </script>
+    </script>
 </body>
 </html>
