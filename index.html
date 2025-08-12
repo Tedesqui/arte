@@ -3,56 +3,279 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>TESTE DE DIAGNÓSTICO DE BOTÕES</title>
+  <title>AR Graffiti — Versão Final</title>
   <style>
-    body, html { height:100%; margin:0; background:#1c1c1c; color:#fff; font-family:system-ui, Arial; display: flex; justify-content: center; align-items: center; }
-    #loginBox { display:flex; flex-direction:column; gap:8px; background: #333; padding: 20px; border-radius: 8px; }
-    #btns { margin-top:8px; display:flex; gap:10px; }
-    button { padding: 10px 15px; font-size: 16px; }
+    html,body { height:100%; margin:0; background:#000; color:#fff; font-family:system-ui, Arial; }
+    #ui { position:fixed; left:10px; top:10px; z-index:9999; background:rgba(0,0,0,0.45); padding:10px; border-radius:8px; }
+    #canvas2d { position:fixed; left:0; top:0; touch-action:none; z-index:2; display:none; }
+    #btns { margin-top:8px; display:flex; gap:6px; }
+    .hidden { display:none; }
+    label{font-size:13px}
+    input[type=color]{width:40px;height:28px;padding:0;border:0}
+    input[type=range]{width:120px}
+    #status{font-size:12px;margin-top:6px;color:#ddd}
+    #loginBox{display:flex;flex-direction:column;gap:6px}
+    #threeContainer{position:fixed; top:0; left:0; width:100%;height:100%; z-index:-1;}
+    #ARButton {
+        bottom: 20px !important; top: unset !important;
+        left: 50%; transform: translateX(-50%);
+        background-color: #007aff; border-radius: 30px;
+        position: fixed; z-index: 10000;
+    }
   </style>
 </head>
 <body>
-
-  <div id="loginBox">
-    <h2>Teste de Diagnóstico</h2>
-    <p>Por favor, clique nos botões abaixo.</p>
-    <div id="btns">
-      <button id="btnLogin">Testar Botão 'Entrar'</button>
-      <button id="btnRegister">Testar Botão 'Criar Conta'</button>
+  <div id="ui">
+    <div id="authUI">
+      <div id="loginBox">
+        <label>Login (email)</label>
+        <input id="email" type="email" placeholder="seu@email.com" />
+        <label>Senha</label>
+        <input id="password" type="password" placeholder="senha" />
+        <div id="btns">
+          <button id="btnLogin">Entrar</button>
+          <button id="btnRegister">Criar conta</button>
+        </div>
+      </div>
+      <div id="userInfo" class="hidden">
+        <div id="userEmail"></div>
+        <button id="btnLogout">Sair</button>
+      </div>
+    </div>
+    <hr />
+    <div id="controls" class="hidden">
+      <div>
+        <label>Cor:</label>
+        <input id="colorPicker" type="color" value="#ff0000" />
+        <label style="margin-left:8px">Espessura:</label>
+        <input id="thickness" type="range" min="1" max="60" value="6" />
+      </div>
+      <div style="margin-top:8px">
+        <button id="btnClear">Limpar Desenho</button>
+        <button id="btnHelp">Instruções</button>
+      </div>
+      <div id="status">Status: aguardando</div>
     </div>
   </div>
 
+  <canvas id="canvas2d"></canvas>
+  <div id="threeContainer"></div>
+
+  <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.156.0/examples/jsm/webxr/ARButton.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
   <script>
-    // Este script espera a página carregar e depois tenta registrar os cliques.
-    document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', () => {
 
-      // Teste 1: Pega o elemento do botão "Entrar"
-      const loginButton = document.getElementById('btnLogin');
-      
-      // Teste 2: Verifica se o botão foi encontrado no HTML
-      if (loginButton) {
-        // Se encontrou, adiciona um ouvinte de clique
-        loginButton.addEventListener('click', () => {
-          // Se o clique funcionar, esta mensagem DEVE aparecer.
-          alert("SUCESSO! O clique no botão 'Entrar' FUNCIONOU.");
-        });
+    /******************************************************************
+     * CONFIGURAÇÃO FIREBASE E VARIÁVEIS GLOBAIS
+     ******************************************************************/
+    const firebaseConfig = {
+      apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
+      authDomain: "tomorrow-art-2694d.firebaseapp.com",
+      projectId: "tomorrow-art-2694d",
+      storageBucket: "tomorrow-art-2694d.appspot.com",
+      messagingSenderId: "932174355356",
+      appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
+      measurementId: "G-DNJKP24S8K"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    const ui = document.getElementById('ui');
+    const loginBox = document.getElementById('loginBox');
+    const userInfo = document.getElementById('userInfo');
+    const userEmail = document.getElementById('userEmail');
+    const controls = document.getElementById('controls');
+    const statusEl = document.getElementById('status');
+    const canvas2d = document.getElementById('canvas2d');
+    const ctx = canvas2d.getContext('2d');
+    
+    let arInitialized = false;
+
+    /******************************************************************
+     * AUTENTICAÇÃO COM PONTOS DE VERIFICAÇÃO
+     ******************************************************************/
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        loginBox.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        controls.classList.remove('hidden');
+        userEmail.textContent = user.email;
+        statusEl.textContent = 'Logado. Preparando AR...';
+        if (!arInitialized) { initAR(); arInitialized = true; }
       } else {
-        // Se o botão nem for encontrado, esta mensagem aparecerá.
-        alert("FALHA CRÍTICA: O script não conseguiu encontrar o #btnLogin no HTML.");
+        loginBox.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        controls.classList.add('hidden');
+        const arButton = document.getElementById('ARButton');
+        if (arButton) arButton.remove();
+        arInitialized = false;
       }
-
-      // Repete o mesmo teste para o botão "Criar Conta"
-      const registerButton = document.getElementById('btnRegister');
-      if (registerButton) {
-        registerButton.addEventListener('click', () => {
-          alert("SUCESSO! O clique no botão 'Criar Conta' FUNCIONOU.");
-        });
-      } else {
-        alert("FALHA CRÍTICA: O script não conseguiu encontrar o #btnRegister no HTML.");
-      }
-
     });
-  </script>
+    
+    // --- BOTÃO DE LOGIN COM DIAGNÓSTICO ---
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      alert('Passo 1: Clique no botão "Entrar" detectado.');
+      try {
+        const email = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
+        alert('Passo 2: Pegando email e senha dos campos.');
 
+        if (!email || !pass) {
+          alert('ERRO: Por favor, preencha o email e a senha.');
+          return;
+        }
+        
+        alert('Passo 3: Chamando o Firebase para fazer login... (Aguarde)');
+        await auth.signInWithEmailAndPassword(email, pass);
+        
+        // Esta mensagem só aparecerá se o login funcionar
+        alert('Passo 4: SUCESSO! Login feito pelo Firebase.'); 
+        
+      } catch(e) {
+        // Esta mensagem só aparecerá se o login falhar
+        alert('Passo 5: ERRO! O Firebase retornou um erro: ' + e.message); 
+      }
+    });
+
+    // --- BOTÃO DE REGISTRO COM DIAGNÓSTICO ---
+    document.getElementById('btnRegister').addEventListener('click', async () => {
+      alert('Passo 1: Clique no botão "Criar Conta" detectado.');
+      try {
+        const email = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
+        alert('Passo 2: Pegando email e senha dos campos.');
+
+        if (!email || !pass) {
+          alert('ERRO: Por favor, preencha o email e a senha.');
+          return;
+        }
+
+        alert('Passo 3: Chamando o Firebase para criar conta... (Aguarde)');
+        const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+
+        alert('Passo 4: SUCESSO! Conta criada no Firebase para: ' + userCredential.user.email);
+        
+      } catch(e) {
+        alert('Passo 5: ERRO! O Firebase retornou um erro: ' + e.message);
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', () => auth.signOut());
+
+    /******************************************************************
+     * Resto do código (Canvas 2D e Three.js/WebXR) - Sem alterações
+     ******************************************************************/
+    function resizeCanvas(){canvas2d.width = window.innerWidth;canvas2d.height = window.innerHeight}
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
+    let camera, scene, renderer, reticle, controller, hitTestSource;
+    function initAR() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
+      renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.getElementById('threeContainer').appendChild(renderer.domElement);
+      const arButton = THREE.ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+      document.body.appendChild(arButton);
+      statusEl.textContent = 'Clique em "ENTER AR" para começar.';
+      const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
+      reticle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial());
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+      renderer.xr.addEventListener('sessionstart', async () => {
+          ui.classList.add('hidden');
+          canvas2d.style.display = 'block';
+          const session = renderer.xr.getSession();
+          const viewerSpace = await session.requestReferenceSpace('viewer');
+          hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+          loadArts();
+      });
+      renderer.xr.addEventListener('sessionend', () => window.location.reload());
+      renderer.setAnimationLoop(animate);
+    }
+    function animate(timestamp, frame){
+      if(frame && hitTestSource){
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if(hitTestResults.length > 0){
+          const hit = hitTestResults[0];
+          reticle.visible = true;
+          reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+        } else { reticle.visible = false; }
+      }
+      renderer.render(scene, camera);
+    }
+    function onSelect(){
+      if(!reticle.visible) return;
+      const tex = new THREE.CanvasTexture(canvas2d);
+      const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true, alphaTest: 0.5 });
+      const aspect = canvas2d.width / canvas2d.height;
+      const height = 1.2;
+      const width = height * aspect;
+      const geom = new THREE.PlaneGeometry(width, height);
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.matrix.copy(reticle.matrix);
+      mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+      scene.add(mesh);
+      saveArt(mesh, width, height);
+    }
+    async function saveArt(mesh, width, height){
+        const imageBlob = await new Promise(r => canvas2d.toBlob(r, 'image/png'));
+        const filename = `arts/${Date.now()}.png`;
+        const storageRef = storage.ref().child(filename);
+        statusEl.textContent = 'Fazendo upload...';
+        try {
+            const uploadTask = await storageRef.put(imageBlob);
+            const url = await uploadTask.ref.getDownloadURL();
+            const user = auth.currentUser;
+            const doc = {
+                ownerUid: user.uid, imageURL: url, widthMeters: width, heightMeters: height,
+                position: {x: mesh.position.x, y: mesh.position.y, z: mesh.position.z},
+                quaternion: {x: mesh.quaternion.x, y: mesh.quaternion.y, z: mesh.quaternion.z, w: mesh.quaternion.w},
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            await db.collection('arts').add(doc);
+            statusEl.textContent = 'Arte salva!';
+            ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+        } catch(e) { console.error(e); statusEl.textContent = 'Erro ao salvar.'; }
+    }
+    async function loadArts() {
+      try {
+          const snap = await db.collection('arts').orderBy('timestamp', 'desc').limit(20).get();
+          snap.forEach(doc => {
+              const data = doc.data();
+              const texLoader = new THREE.TextureLoader();
+              texLoader.load(data.imageURL, (tex) => {
+                  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 });
+                  const geom = new THREE.PlaneGeometry(data.widthMeters, data.heightMeters);
+                  const mesh = new THREE.Mesh(geom, mat);
+                  mesh.position.set(data.position.x, data.position.y, data.position.z);
+                  mesh.quaternion.set(data.quaternion.x, data.quaternion.y, data.quaternion.z, data.quaternion.w);
+                  scene.add(mesh);
+              });
+          });
+      } catch(e) { console.error("Erro ao carregar artes:", e); }
+    }
+    document.getElementById('btnHelp').onclick = ()=>{
+      alert('Para salvar, desenhe algo na tela e depois toque numa superfície plana no mundo real (onde o anel branco aparece) para posicionar sua arte.');
+    }
+  });
+  </script>
 </body>
 </html>
