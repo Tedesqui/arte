@@ -1,101 +1,42 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>AR Graffiti - Diagnóstico Final</title>
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #121212; font-family: sans-serif; }
-        .hidden { display: none !important; }
-        /* Telas de UI */
-        .fullscreen-ui { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; text-align: center; z-index: 10000; }
-        #login-container { background: #121212; }
-        #login-box { background: #242424; padding: 30px; border-radius: 12px; width: 90%; max-width: 320px; }
-        h1 { margin-top: 0; color: white; }
-        #login-form { display:flex; flex-direction:column; gap:10px; }
-        #login-btns { margin-top:15px; display:flex; gap:10px; }
-        input { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #333; color: white; font-size: 16px; }
-        button { padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; flex-grow: 1; }
-        #btnLogin { background-color: #007aff; color: white; }
-        #btnRegister { background-color: #333; border: 1px solid #555; color: white; }
-        #login-status { margin-top: 15px; color: #aaa; min-height: 20px; font-size: 14px; }
-        /* Diário de Bordo (Debug Log) */
-        #debug-log {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0,0,0,0.8);
-            color: #0f0; /* Verde, para parecer um terminal */
-            font-family: monospace;
-            font-size: 12px;
-            padding: 5px;
-            max-height: 25vh;
-            overflow-y: auto;
-            z-index: 99999;
-            border-top: 1px solid #444;
-        }
-        #debug-log p { margin: 2px 0; border-bottom: 1px solid #333; }
-        /* A-Frame UI */
-        .a-enter-ar-button { z-index: 10001 !important; }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Graffiti - Login</title>
+  <style>
+    body, html { height:100%; margin:0; background:#121212; color:#fff; font-family:system-ui, Arial; display: flex; justify-content: center; align-items: center; text-align: center; }
+    #container { background: #242424; padding: 30px; border-radius: 12px; width: 90%; max-width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    h1 { margin-top: 0; }
+    #loginBox { display:flex; flex-direction:column; gap:10px; }
+    #btns { margin-top:15px; display:flex; gap:10px; }
+    input { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #333; color: white; font-size: 16px; }
+    button { flex-grow: 1; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; background-color: #007aff; color: white; transition: background-color 0.2s; }
+    button:hover { background-color: #0056b3; }
+    #btnRegister { background-color: #333; border: 1px solid #555; }
+    #btnRegister:hover { background-color: #444; }
+    #status { margin-top: 15px; color: #aaa; min-height: 20px; font-size: 14px; }
+  </style>
 </head>
 <body>
-    <div id="login-container" class="fullscreen-ui">
-        <div id="login-box">
-            <h1>AR Graffiti</h1>
-            <div id="login-form">
-                <input id="email" type="email" placeholder="E-mail" autocomplete="email" />
-                <input id="password" type="password" placeholder="Senha" autocomplete="current-password" />
-                <div id="login-btns">
-                    <button id="btnLogin">Entrar</button>
-                    <button id="btnRegister">Criar conta</button>
-                </div>
-            </div>
-            <div id="login-status"></div>
-        </div>
+  <div id="container">
+    <h1>AR Graffiti</h1>
+    <div id="loginBox">
+      <input id="email" type="email" placeholder="E-mail" autocomplete="email" />
+      <input id="password" type="password" placeholder="Senha" autocomplete="current-password" />
+      <div id="btns">
+        <button id="btnLogin">Entrar</button>
+        <button id="btnRegister">Criar conta</button>
+      </div>
     </div>
+    <div id="status">Por favor, faça o login para continuar.</div>
+  </div>
 
-    <div id="ar-container" class="hidden">
-        <a-scene id="ar-scene"
-            webxr="requiredFeatures: hit-test;"
-            vr-mode-ui="enabled: false"
-            renderer="colorManagement: true">
-            <a-camera></a-camera>
-            </a-scene>
-        </div>
-
-    <div id="debug-log"></div>
-
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-    <script>
-    const debugLog = document.getElementById('debug-log');
-    function log(message) {
-        console.log(message); // Para o console do desenvolvedor
-        const p = document.createElement('p');
-        p.textContent = `[LOG]: ${message}`;
-        debugLog.appendChild(p);
-        debugLog.scrollTop = debugLog.scrollHeight; // Rola para a última mensagem
-    }
-
-    log("Iniciando script...");
-
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script>
     document.addEventListener('DOMContentLoaded', () => {
-        log("DOM carregado. Anexando eventos.");
-
-        // --- Variáveis da UI ---
-        const loginContainer = document.getElementById('login-container');
-        const arContainer = document.getElementById('ar-container');
-        const loginStatus = document.getElementById('login-status');
-        const sceneEl = document.querySelector('a-scene');
-
-        // --- Configuração do Firebase ---
-        let auth;
-        try {
-            log("Configurando Firebase...");
-            const firebaseConfig = {
+      const firebaseConfig = {
         apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
         authDomain: "tomorrow-art-2694d.firebaseapp.com",
         projectId: "tomorrow-art-2694d",
@@ -103,61 +44,34 @@
         messagingSenderId: "932174355356",
         appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
         measurementId: "G-DNJKP24S8K"
-            };
-            firebase.initializeApp(firebaseConfig);
-            auth = firebase.auth();
-            log("Firebase configurado com sucesso.");
-        } catch (e) {
-            log("ERRO FATAL ao configurar o Firebase: " + e.message);
-            return; // Para a execução se o Firebase falhar
+      };
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const statusEl = document.getElementById('status');
+      const loginBox = document.getElementById('loginBox');
+
+      auth.onAuthStateChanged(user => {
+        if (user) {
+          loginBox.style.display = 'none';
+          statusEl.textContent = 'Login bem-sucedido! Redirecionando para a AR...';
+          setTimeout(() => { window.location.href = 'ar.html'; }, 500);
         }
+      });
 
-        // --- Lógica de Autenticação ---
-        log("Anexando observador de autenticação...");
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                log("Usuário encontrado: " + user.email);
-                loginContainer.classList.add('hidden');
-                arContainer.classList.remove('hidden');
-                log("Interface da AR ativada. A-Frame deve assumir agora.");
-                // O A-Frame deve criar o botão "ENTER AR" automaticamente a partir daqui
-            } else {
-                log("Nenhum usuário logado.");
-                loginContainer.classList.remove('hidden');
-                arContainer.classList.add('hidden');
-            }
-        });
+      document.getElementById('btnLogin').addEventListener('click', async () => {
+        const email = document.getElementById("email").value; const pass = document.getElementById("password").value;
+        if (!email || !pass) { statusEl.textContent = 'Por favor, preencha ambos os campos.'; return; }
+        statusEl.textContent = 'Entrando...';
+        try { await auth.signInWithEmailAndPassword(email, pass); } catch(e) { statusEl.textContent = `Erro: Credenciais inválidas.`; }
+      });
 
-        document.getElementById('btnLogin').addEventListener('click', async () => {
-            log("Botão 'Entrar' clicado.");
-            const email = document.getElementById("email").value;
-            const pass = document.getElementById("password").value;
-            loginStatus.textContent = 'Entrando...';
-            try {
-                await auth.signInWithEmailAndPassword(email, pass);
-                log("signInWithEmailAndPassword chamado com sucesso.");
-            } catch(e) {
-                loginStatus.textContent = `Erro: ${e.message}`;
-                log("Erro no login: " + e.message);
-            }
-        });
-
-        document.getElementById('btnRegister').addEventListener('click', async () => {
-            log("Botão 'Criar Conta' clicado.");
-            const email = document.getElementById("email").value;
-            const pass = document.getElementById("password").value;
-            loginStatus.textContent = 'Criando conta...';
-            try {
-                await auth.createUserWithEmailAndPassword(email, pass);
-                log("createUserWithEmailAndPassword chamado com sucesso.");
-            } catch(e) {
-                loginStatus.textContent = `Erro: ${e.message}`;
-                log("Erro ao registrar: " + e.message);
-            }
-        });
-        
-        log("Todos os eventos foram anexados com sucesso.");
+      document.getElementById('btnRegister').addEventListener('click', async () => {
+        const email = document.getElementById("email").value; const pass = document.getElementById("password").value;
+        if (!email || !pass) { statusEl.textContent = 'Por favor, preencha ambos os campos.'; return; }
+        statusEl.textContent = 'Criando conta...';
+        try { await auth.createUserWithEmailAndPassword(email, pass); } catch(e) { statusEl.textContent = `Erro ao criar conta.`; }
+      });
     });
-    </script>
+  </script>
 </body>
 </html>
