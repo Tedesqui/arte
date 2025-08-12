@@ -1,62 +1,78 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <title>AR Graffiti GPS</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  
-  <!-- A-Frame & AR.js -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
-  
-  <!-- Firebase compat (mais simples para integração rápida) -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Graffiti — Protótipo</title>
   <style>
-    body { margin:0; overflow:hidden; }
-    #drawCanvas {
-      position: absolute;
-      top: 0; left: 0;
-      pointer-events: none;
-    }
-    #controls {
-      position: fixed;
-      bottom: 10px; left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.5);
-      padding: 5px;
-      border-radius: 5px;
-      color: white;
-      font-family: sans-serif;
-      z-index: 999;
-    }
-    button {
-      background: #ff4444;
-      border: none;
-      padding: 5px 10px;
-      color: white;
-      border-radius: 3px;
-      cursor: pointer;
-    }
+    html,body { height:100%; margin:0; background:#000; color:#fff; font-family:system-ui, Arial; }
+    #ui { position:fixed; left:10px; top:10px; z-index:9999; background:rgba(0,0,0,0.45); padding:10px; border-radius:8px; }
+    #canvas2d { position:fixed; left:0; top:0; touch-action:none; z-index:2; }
+    #btns { margin-top:8px; display:flex; gap:6px; }
+    .hidden { display:none; }
+    label{font-size:13px}
+    input[type=color]{width:40px;height:28px;padding:0;border:0}
+    input[type=range]{width:120px}
+    #status{font-size:12px;margin-top:6px;color:#ddd}
+    #loginBox{display:flex;flex-direction:column;gap:6px}
+    #threeContainer{width:100%;height:100%;}
   </style>
 </head>
 <body>
+  <div id="ui">
+    <div id="authUI">
+      <div id="loginBox">
+        <label>Login (email)</label>
+        <input id="email" type="email" placeholder="seu@email.com" />
+        <label>Senha</label>
+        <input id="password" type="password" placeholder="senha" />
+        <div id="btns">
+          <button id="btnLogin">Entrar</button>
+          <button id="btnRegister">Criar conta</button>
+        </div>
+      </div>
+      <div id="userInfo" class="hidden">
+        <div id="userEmail"></div>
+        <button id="btnLogout">Sair</button>
+      </div>
+    </div>
 
-<a-scene
-  vr-mode-ui="enabled: false"
-  embedded
-  arjs="sourceType: webcam; debugUIEnabled: false;"
-  renderer="logarithmicDepthBuffer: true;">
-</a-scene>
+    <hr />
+    <div id="controls" class="hidden">
+      <div>
+        <label>Cor:</label>
+        <input id="colorPicker" type="color" value="#ff0000" />
+        <label style="margin-left:8px">Espessura:</label>
+        <input id="thickness" type="range" min="1" max="60" value="6" />
+      </div>
+      <div style="margin-top:8px">
+        <button id="btnStartAR">Iniciar AR</button>
+        <button id="btnClear">Limpar</button>
+        <button id="btnSave">Salvar Arte</button>
+      </div>
+      <div id="status">Status: esperando iniciar</div>
+    </div>
+  </div>
 
-<canvas id="drawCanvas"></canvas>
-<div id="controls">
-  Toque para desenhar | <button onclick="saveDrawing()">Salvar</button>
-</div>
+  <canvas id="canvas2d"></canvas>
+  <div id="threeContainer"></div>
 
-<script>
-  // 🔹 1. Configuração do Firebase (suas credenciais)
+  <!-- Three.js + WebXR hit-test helper -->
+  <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.156.0/examples/jsm/webxr/ARButton.js"></script>
+
+  <!-- Firebase compat (fácil de integrar) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+  <script>
+  /******************************************************************
+   * CONFIGURAÇÃO FIREBASE
+   * Substitua pelos dados do seu projeto — você enviou os dados antes,
+   * já deixei os placeholders aqui para você confirmar.
+   ******************************************************************/
   const firebaseConfig = {
     apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
     authDomain: "tomorrow-art-2694d.firebaseapp.com",
@@ -67,85 +83,279 @@
     measurementId: "G-DNJKP24S8K"
   };
   firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
   const db = firebase.firestore();
+  const storage = firebase.storage();
 
-  // 🔹 2. Canvas para desenho
-  const canvas = document.getElementById('drawCanvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  let drawing = false;
+  // UI elements
+  const loginBox = document.getElementById('loginBox');
+  const userInfo = document.getElementById('userInfo');
+  const userEmail = document.getElementById('userEmail');
+  const controls = document.getElementById('controls');
+  const statusEl = document.getElementById('status');
 
-  document.body.addEventListener('touchstart', e => {
-    drawing = true;
-    ctx.beginPath();
-    ctx.moveTo(e.touches[0].clientX, e.touches[0].clientY);
-  });
-  document.body.addEventListener('touchmove', e => {
-    if (!drawing) return;
-    ctx.lineTo(e.touches[0].clientX, e.touches[0].clientY);
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-  });
-  document.body.addEventListener('touchend', () => drawing = false);
-
-  // 🔹 3. Salvar desenho no Firestore com coordenadas GPS
-  function saveDrawing() {
-    if (!navigator.geolocation) return alert("GPS não suportado");
-    navigator.geolocation.getCurrentPosition(pos => {
-      const dataURL = canvas.toDataURL();
-      db.collection("artes").add({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        image: dataURL,
-        timestamp: Date.now()
-      }).then(() => {
-        alert("Arte salva!");
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-      }).catch(err => {
-        console.error("Erro ao salvar: ", err);
-      });
-    }, err => {
-      alert("Erro ao acessar GPS");
-    });
+  // auth buttons
+  document.getElementById('btnLogin').onclick = async ()=>{
+    const email = document.getElementById('email').value;
+    const pass = document.getElementById('password').value;
+    try{
+      await auth.signInWithEmailAndPassword(email, pass);
+    }catch(e){ alert('Erro login: '+e.message) }
   }
+  document.getElementById('btnRegister').onclick = async ()=>{
+    const email = document.getElementById('email').value;
+    const pass = document.getElementById('password').value;
+    try{
+      await auth.createUserWithEmailAndPassword(email, pass);
+      alert('Conta criada, você está logado.');
+    }catch(e){ alert('Erro registrar: '+e.message) }
+  }
+  document.getElementById('btnLogout').onclick = ()=> auth.signOut();
 
-  // 🔹 4. Carregar desenhos próximos
-  navigator.geolocation.getCurrentPosition(pos => {
-    db.collection("artes").get().then(snapshot => {
-      snapshot.forEach(doc => {
-        const art = doc.data();
-        const dist = Math.sqrt(
-          Math.pow(art.lat - pos.coords.latitude, 2) +
-          Math.pow(art.lng - pos.coords.longitude, 2)
-        );
-        if (dist < 0.0005) { // raio de ~50 metros
-          renderARImage(art.image, art.lat, art.lng);
-        }
-      });
-    });
-  });
-
-  // 🔹 5. Renderizar imagem no AR
-  function renderARImage(imgURL, lat, lng) {
-    const scene = document.querySelector('a-scene');
-    const entity = document.createElement('a-image');
-    entity.setAttribute('src', imgURL);
-    entity.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng}`);
-    entity.setAttribute('look-at', '[gps-camera]');
-    entity.setAttribute('scale', '5 5 5');
-    scene.appendChild(entity);
-
-    // GPS camera
-    if (!document.querySelector('[gps-camera]')) {
-      const camera = document.createElement('a-camera');
-      camera.setAttribute('gps-camera', 'minDistance: 1');
-      camera.setAttribute('rotation-reader', '');
-      scene.appendChild(camera);
+  auth.onAuthStateChanged(user=>{
+    if(user){
+      loginBox.classList.add('hidden');
+      userInfo.classList.remove('hidden');
+      controls.classList.remove('hidden');
+      userEmail.textContent = user.email;
+    }else{
+      loginBox.classList.remove('hidden');
+      userInfo.classList.add('hidden');
+      controls.classList.add('hidden');
     }
-  }
-</script>
+  });
 
+  /******************************************************************
+   * Canvas 2D (desenho) — o usuário desenha numa textura que iremos
+   * aplicar sobre um plano 3D ancorado no mundo.
+   ******************************************************************/
+  const canvas2d = document.getElementById('canvas2d');
+  const ctx = canvas2d.getContext('2d');
+  function resizeCanvas(){
+    canvas2d.width = window.innerWidth;
+    canvas2d.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  let drawing = false;
+  let last = null;
+  const colorInput = document.getElementById('colorPicker');
+  const thicknessInput = document.getElementById('thickness');
+
+  function getPointer(e){
+    if(e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  canvas2d.addEventListener('pointerdown', (e)=>{
+    drawing = true; last = getPointer(e);
+  });
+  canvas2d.addEventListener('pointermove', (e)=>{
+    if(!drawing) return;
+    const p = getPointer(e);
+    ctx.strokeStyle = colorInput.value;
+    ctx.lineWidth = thicknessInput.value;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    last = p;
+  });
+  window.addEventListener('pointerup', ()=>{ drawing=false; last=null; });
+
+  document.getElementById('btnClear').onclick = ()=>{ ctx.clearRect(0,0,canvas2d.width, canvas2d.height); }
+
+  /******************************************************************
+   * Three.js + WebXR — detectar superfícies com hit-test e ancorar
+   * um plano com a textura (a textura vem do canvas2d).
+   ******************************************************************/
+  let camera, scene, renderer;
+  let reticle = null; // visual helper
+  let placedPlanes = [];
+
+  const threeContainer = document.getElementById('threeContainer');
+
+  function initThree(){
+    renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    threeContainer.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera();
+
+    // reticle
+    const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
+    const ringMat = new THREE.MeshBasicMaterial({ color:0xffffff });
+    reticle = new THREE.Mesh(ringGeo, ringMat);
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add(reticle);
+
+    // lighting (not really needed for flat planes)
+    const light = new THREE.DirectionalLight(0xffffff,1);
+    light.position.set(1,2,1);
+    scene.add(light);
+
+    renderer.setAnimationLoop(animate);
+  }
+
+  // animate loop
+  function animate(timestamp, frame){
+    if(frame){
+      const session = renderer.xr.getSession();
+      const refSpace = renderer.xr.getReferenceSpace();
+
+      // hit test to position reticle
+      if(hitTestSource && frame){
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if(hitTestResults.length>0){
+          const hit = hitTestResults[0];
+          const pose = hit.getPose(refSpace);
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+        } else {
+          reticle.visible = false;
+        }
+      }
+
+      // update textures of placed planes from canvas
+      placedPlanes.forEach(p=>{
+        if(p.mesh && p.mesh.material && p.mesh.material.map) p.mesh.material.map.needsUpdate = true;
+      });
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  let hitTestSource = null;
+  let localReferenceSpace = null;
+
+  async function startAR(){
+    if(!navigator.xr) return alert('WebXR não suportado neste dispositivo. Chrome Android recomendado.');
+
+    initThree();
+
+    const sessionInit = { requiredFeatures: ['hit-test'] , optionalFeatures:['dom-overlay','anchors'] , domOverlay: { root: document.body } };
+    const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+
+    renderer.xr.setSession(session);
+    // reference space
+    localReferenceSpace = await session.requestReferenceSpace('local');
+
+    // request hit-test source
+    const viewerSpace = await session.requestReferenceSpace('viewer');
+    hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+
+    // handle select to place
+    session.addEventListener('select', onSelect);
+
+    // add controller for input (taps)
+    const controller = renderer.xr.getController(0);
+    controller.addEventListener('select', onSelect);
+    scene.add(controller);
+
+    statusEl.textContent = 'AR iniciado — aponte para uma superfície plana e toque na tela para posicionar a arte.';
+  }
+
+  async function onSelect(){
+    if(!reticle.visible) { statusEl.textContent = 'Nenhuma superfície detectada.'; return; }
+
+    // create texture from canvas2d
+    const tex = new THREE.CanvasTexture(canvas2d);
+    tex.needsUpdate = true;
+    const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true });
+
+    // create plane geometry in proper aspect ratio
+    const aspect = canvas2d.width / canvas2d.height;
+    const height = 1.2; // meters (you can change)
+    const width = height * aspect;
+    const geom = new THREE.PlaneGeometry(width, height);
+    const mesh = new THREE.Mesh(geom, material);
+
+    // position using reticle matrix
+    mesh.applyMatrix4(reticle.matrix);
+
+    scene.add(mesh);
+    placedPlanes.push({ mesh, tex, width, height });
+
+    // try to create an XRAnchor if available (best-effort)
+    const session = renderer.xr.getSession();
+    if(frameForAnchor==null){
+      // we can not access frame here; attempt anchor creation via requestAnimationFrame trick is complex.
+    }
+
+    // save to firebase: we store the matrix (16 floats) as array + image (in Storage) + owner
+    const matrix = Array.from(mesh.matrix.elements);
+    const imageBlob = await new Promise(r=>canvas2d.toBlob(r,'image/png'));
+
+    // upload image to storage
+    const filename = `arts/${Date.now()}_${Math.random().toString(36).slice(2,8)}.png`;
+    const storageRef = storage.ref().child(filename);
+    const uploadTask = storageRef.put(imageBlob);
+    uploadTask.on('state_changed', null, err=>{ console.error('upload err',err); alert('Erro upload'); }, async ()=>{
+      const url = await uploadTask.snapshot.ref.getDownloadURL();
+      const user = auth.currentUser;
+      const doc = {
+        ownerUid: user ? user.uid : null,
+        ownerEmail: user ? user.email : null,
+        matrix: matrix,
+        widthMeters: width,
+        heightMeters: height,
+        imageURL: url,
+        timestamp: Date.now()
+      };
+      db.collection('arts').add(doc).then(()=>{
+        statusEl.textContent = 'Arte salva no Firebase!';
+      }).catch(e=>{ console.error(e); alert('Erro salvar firestore'); });
+    });
+  }
+
+  // load existing arts from firestore and try to place them in scene
+  async function loadArts(){
+    const snap = await db.collection('arts').get();
+    snap.forEach(doc=>{
+      const data = doc.data();
+      // create plane with image texture
+      const tex = new THREE.TextureLoader().load(data.imageURL, ()=>{ /*loaded*/ });
+      const mat = new THREE.MeshBasicMaterial({ map:tex, side:THREE.DoubleSide, transparent:true });
+      const geom = new THREE.PlaneGeometry(data.widthMeters, data.heightMeters);
+      const mesh = new THREE.Mesh(geom, mat);
+      // if we have stored matrix
+      if(data.matrix && data.matrix.length===16){
+        const m = new THREE.Matrix4();
+        m.fromArray(data.matrix);
+        mesh.applyMatrix4(m);
+      }
+      scene && scene.add(mesh);
+      placedPlanes.push({mesh, tex});
+    });
+  }
+
+  // attach start button
+  document.getElementById('btnStartAR').onclick = async ()=>{
+    try{
+      await startAR();
+      // after session started, load arts to the current scene
+      await loadArts();
+    }catch(e){ alert('Erro iniciar AR: '+e.message); console.error(e); }
+  }
+
+  // save button — saves latest placed plane only (prototype)
+  document.getElementById('btnSave').onclick = ()=>{
+    // trigger a 'select' programmatically is complex; instead we instruct user to tap the screen while AR is running to place and save
+    alert('Toque na tela enquanto o modo AR estiver ativo para posicionar e salvar a arte (o upload é automático).');
+  }
+
+  // initial feature detection and messages
+  (function init(){
+    statusEl.textContent = 'Pronto. Faça login para habilitar controles.';
+    // fallback: ensure WebXR available
+    if(!navigator.xr){ statusEl.textContent += ' / WebXR não disponível neste dispositivo.'; }
+  })();
+
+  </script>
 </body>
 </html>
