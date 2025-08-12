@@ -1,90 +1,50 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>AR Graffiti - A-Frame</title>
+    <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" /><title>AR Graffiti - A-Frame</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
-        #auth-loader { height:100%; color: white; display: flex; justify-content: center; align-items: center; text-align: center; font-family: sans-serif; }
-        .a-enter-ar-button { position: fixed !important; bottom: 20px !important; left: 50% !important; transform: translateX(-50%) !important; background-color: #007aff !important; border-radius: 30px !important; z-index: 10000 !important; font-size: 18px !important; padding: 12px 24px !important; }
-        #ui-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; }
-        .hidden { display: none !important; }
-        #drawing-ui { background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; pointer-events: auto; }
-        label { color: white; font-size: 13px; font-family: sans-serif; }
-        input[type=color] { width:40px; height:28px; padding:0; border:0; }
-        input[type=range] { width:120px; }
-        #btnLogout, #toggle-draw-btn, .ui-button { border: none; border-radius: 8px; padding: 8px 12px; font-weight: bold; cursor: pointer; pointer-events: auto; }
-        #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; background-color: #dc3545; color: white; }
-        #toggle-draw-btn { position: fixed; bottom: 20px; right: 20px; background-color: #00aaff; color: #fff; border-radius: 50%; width: 60px; height: 60px; font-size: 32px; line-height: 60px; text-align: center; }
-    </style>
+    <style>body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; } .a-enter-ar-button { position: fixed !important; bottom: 20px !important; left: 50% !important; transform: translateX(-50%) !important; background-color: #007aff !important; border-radius: 30px !important; z-index: 10000 !important; font-size: 18px !important; padding: 12px 24px !important; } #ui-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; } .hidden { display: none !important; } #drawing-ui { background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; pointer-events: auto; } label { color: white; font-size: 13px; font-family: sans-serif; } input[type=color] { width:40px; height:28px; padding:0; border:0; } input[type=range] { width:120px; } #btnLogout, #toggle-draw-btn, .ui-button { border: none; border-radius: 8px; padding: 8px 12px; font-weight: bold; cursor: pointer; pointer-events: auto; } #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; background-color: #dc3545; color: white; } #toggle-draw-btn { position: fixed; bottom: 20px; right: 20px; background-color: #00aaff; color: #fff; border-radius: 50%; width: 60px; height: 60px; font-size: 32px; line-height: 60px; text-align: center; }</style>
 </head>
 <body>
-    <div id="auth-loader">
-        <h1>Verificando login...</h1>
-    </div>
-
-    <a-scene id="ar-scene" webxr="requiredFeatures: hit-test;" vr-mode-ui="enabled: false" renderer="colorManagement: true" class="hidden">
+    <div id="auth-loader" style="height:100%; color: white; display: flex; justify-content: center; align-items: center; text-align: center; font-family: sans-serif;"><h1>Verificando login...</h1></div>
+    <a-scene id="ar-scene" webxr="requiredFeatures: hit-test;" vr-mode-ui="enabled: false" renderer="colorManagement: true" style="visibility: hidden;">
         <a-assets><canvas id="paint-canvas" width="512" height="512" crossorigin="anonymous"></canvas></a-assets>
         <a-camera></a-camera>
         <a-entity id="reticle" ar-hit-test visible="false"><a-ring color="#007aff" radius-inner="0.15" radius-outer="0.2" rotation="-90 0 0"></a-ring></a-entity>
     </a-scene>
     <div id="ui-overlay" class="hidden">
-        <button id="btnLogout">Sair</button>
-        <button id="toggle-draw-btn" class="hidden">🖌️</button>
+        <button id="btnLogout">Sair</button> <button id="toggle-draw-btn" class="hidden">🖌️</button>
         <div id="drawing-ui" class="hidden" style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%);">
             <label>Cor:</label><input id="colorPicker" type="color" value="#ff0000" /><label>Espessura:</label><input id="thickness" type="range" min="1" max="30" value="10" /><button id="btnClear" class="ui-button">Limpar</button><button id="btnPlaceArt" class="ui-button">Posicionar</button>
         </div>
     </div>
-
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script> <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script> <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script> <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const firebaseConfig = { /* ... Seus dados do Firebase ... */ };
+        // --- COLE SUAS CHAVES DO FIREBASE AQUI ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
+          authDomain: "tomorrow-art-2694d.firebaseapp.com",
+          projectId: "tomorrow-art-2694d",
+          storageBucket: "tomorrow-art-2694d.appspot.com",
+          messagingSenderId: "932174355356",
+          appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
+          measurementId: "G-DNJKP24S8K"
+        };
+        
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-        const storage = firebase.storage();
-
-        const authLoader = document.getElementById('auth-loader');
-        const sceneEl = document.querySelector('a-scene');
-        const uiOverlay = document.getElementById('ui-overlay');
-        const btnLogout = document.getElementById('btnLogout');
-
+        const auth = firebase.auth(); const db = firebase.firestore(); const storage = firebase.storage();
+        const authLoader = document.getElementById('auth-loader'); const sceneEl = document.querySelector('a-scene'); const uiOverlay = document.getElementById('ui-overlay'); const btnLogout = document.getElementById('btnLogout');
         let appReady = false;
-
-        // --- GUARDA DE AUTENTICAÇÃO ROBUSTA ---
         const unsubscribe = auth.onAuthStateChanged(user => {
-            unsubscribe(); // Roda apenas uma vez para pegar o status inicial
-            if (!user) {
-                // Se não houver usuário após a verificação inicial, volta para o login.
-                window.location.href = 'index.html';
-            } else {
-                // Usuário confirmado! Esconde o loader e mostra o app.
-                authLoader.classList.add('hidden');
-                sceneEl.classList.remove('hidden');
-                uiOverlay.classList.remove('hidden');
-
-                // Inicia a lógica do app
-                if (sceneEl.hasLoaded) {
-                    runApp();
-                } else {
-                    sceneEl.addEventListener('loaded', runApp);
-                }
+            unsubscribe(); 
+            if (!user) { window.location.href = 'index.html'; } else {
+                authLoader.classList.add('hidden'); sceneEl.style.visibility = 'visible'; uiOverlay.classList.remove('hidden');
+                if (sceneEl.hasLoaded) { runApp(); } else { sceneEl.addEventListener('loaded', runApp); }
             }
         });
-
-        btnLogout.addEventListener('click', () => auth.signOut().then(() => {
-            // Garante que o redirecionamento aconteça após o logout
-            window.location.href = 'index.html';
-        }));
-
+        btnLogout.addEventListener('click', () => auth.signOut().then(() => window.location.href = 'index.html'));
         function runApp() {
-            // A lógica de AR e desenho continua a mesma da versão anterior...
             if (appReady) return; appReady = true;
             const reticle = document.getElementById('reticle'); const toggleDrawBtn = document.getElementById('toggle-draw-btn'); const drawingUI = document.getElementById('drawingUI'); const paintCanvas = document.getElementById('paint-canvas'); const ctx = paintCanvas.getContext('2d'); let currentArtTexture = null;
             sceneEl.addEventListener('enter-vr', () => { toggleDrawBtn.classList.remove('hidden'); loadArts(); });
