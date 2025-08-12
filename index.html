@@ -16,8 +16,6 @@
     #status{font-size:12px;margin-top:6px;color:#ddd}
     #loginBox{display:flex;flex-direction:column;gap:6px}
     #threeContainer{width:100%;height:100%;}
-    /* Estilo para o botão de AR gerado pelo ARButton.js */
-    #ARButton { bottom: 20px !important; top: unset !important; }
   </style>
 </head>
 <body>
@@ -48,6 +46,7 @@
         <input id="thickness" type="range" min="1" max="60" value="6" />
       </div>
       <div style="margin-top:8px">
+        <button id="btnEnterAR">Iniciar AR</button> 
         <button id="btnClear">Limpar</button>
         <button id="btnSave">Salvar Arte</button>
       </div>
@@ -84,7 +83,6 @@
   const db = firebase.firestore();
   const storage = firebase.storage();
 
-  // Elementos da UI
   const ui = document.getElementById('ui');
   const loginBox = document.getElementById('loginBox');
   const userInfo = document.getElementById('userInfo');
@@ -93,59 +91,14 @@
   const statusEl = document.getElementById('status');
 
   /******************************************************************
-   * AUTENTICAÇÃO
+   * AUTENTICAÇÃO (Sem alterações)
    ******************************************************************/
-  document.getElementById('btnLogin').onclick = async ()=>{
-    const email = document.getElementById('email').value; const pass = document.getElementById('password').value;
-    try{ await auth.signInWithEmailAndPassword(email, pass); }catch(e){ alert('Erro login: '+e.message) }
-  }
-  document.getElementById('btnRegister').onclick = async ()=>{
-    const email = document.getElementById('email').value; const pass = document.getElementById('password').value;
-    try{ await auth.createUserWithEmailAndPassword(email, pass); alert('Conta criada, você está logado.'); }catch(e){ alert('Erro registrar: '+e.message) }
-  }
-  document.getElementById('btnLogout').onclick = ()=> auth.signOut();
-  auth.onAuthStateChanged(user=>{
-    if(user){
-      loginBox.classList.add('hidden');
-      userInfo.classList.remove('hidden');
-      controls.classList.remove('hidden');
-      userEmail.textContent = user.email;
-      statusEl.textContent = 'Pronto para iniciar AR.';
-    }else{
-      loginBox.classList.remove('hidden');
-      userInfo.classList.add('hidden');
-      controls.classList.add('hidden');
-    }
-  });
+  document.getElementById('btnLogin').onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.signInWithEmailAndPassword(e,t)}catch(e){alert("Erro login: "+e.message)}};document.getElementById("btnRegister").onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.createUserWithEmailAndPassword(e,t),alert("Conta criada, você está logado.")}catch(e){alert("Erro registrar: "+e.message)}};document.getElementById("btnLogout").onclick=()=>auth.signOut();auth.onAuthStateChanged(e=>{e?(loginBox.classList.add("hidden"),userInfo.classList.remove("hidden"),controls.classList.remove("hidden"),userEmail.textContent=e.email,statusEl.textContent="Pronto para iniciar AR."):(loginBox.classList.remove("hidden"),userInfo.classList.add("hidden"),controls.classList.add("hidden"))});
 
   /******************************************************************
-   * Canvas 2D (Desenho)
+   * Canvas 2D (Desenho) (Sem alterações)
    ******************************************************************/
-  const canvas2d = document.getElementById('canvas2d');
-  const ctx = canvas2d.getContext('2d');
-  function resizeCanvas(){ canvas2d.width = window.innerWidth; canvas2d.height = window.innerHeight; }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
-
-  let drawing = false; let last = null;
-  const colorInput = document.getElementById('colorPicker');
-  const thicknessInput = document.getElementById('thickness');
-
-  function getPointer(e){
-    if(e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    return { x: e.clientX, y: e.clientY };
-  }
-
-  canvas2d.addEventListener('pointerdown', (e)=>{ drawing = true; last = getPointer(e); });
-  canvas2d.addEventListener('pointermove', (e)=>{
-    if(!drawing) return;
-    const p = getPointer(e);
-    ctx.strokeStyle = colorInput.value; ctx.lineWidth = thicknessInput.value; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
-    last = p;
-  });
-  window.addEventListener('pointerup', ()=>{ drawing=false; last=null; });
-  document.getElementById('btnClear').onclick = ()=>{ ctx.clearRect(0,0,canvas2d.width, canvas2d.height); }
+  const canvas2d=document.getElementById("canvas2d"),ctx=canvas2d.getContext("2d");function resizeCanvas(){canvas2d.width=window.innerWidth,canvas2d.height=window.innerHeight}window.addEventListener("resize",resizeCanvas),resizeCanvas();let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
 
   /******************************************************************
    * Three.js + WebXR
@@ -153,14 +106,13 @@
   let camera, scene, renderer;
   let reticle, controller;
   let hitTestSource = null;
+  let officialARButton = null; // --- CORREÇÃO: Variável para guardar o botão oficial ---
 
   const threeContainer = document.getElementById('threeContainer');
   
   function initThree(){
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-    
-    // Luz
     const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
     light.position.set(0.5, 1, 0.25);
     scene.add(light);
@@ -171,13 +123,13 @@
     renderer.xr.enabled = true;
     threeContainer.appendChild(renderer.domElement);
 
-    // --- CORREÇÃO: Usando o ARButton oficial ---
-    // Ele gerencia a criação do botão e o início da sessão de AR.
-    document.body.appendChild(THREE.ARButton.createButton(renderer, {
-      requiredFeatures: ['hit-test', 'anchors'] // Pedimos hit-test e âncoras para estabilidade
-    }));
+    // --- CORREÇÃO: Criamos o botão oficial, mas o escondemos. Nós o ativaremos com nosso próprio botão. ---
+    officialARButton = THREE.ARButton.createButton(renderer, {
+      requiredFeatures: ['hit-test', 'anchors']
+    });
+    officialARButton.style.display = 'none'; // Esconde o botão padrão
+    document.body.appendChild(officialARButton);
     
-    // Retículo para indicar a superfície
     const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
     const ringMat = new THREE.MeshBasicMaterial();
     reticle = new THREE.Mesh(ringGeo, ringMat);
@@ -185,29 +137,23 @@
     reticle.visible = false;
     scene.add(reticle);
 
-    // Controlador para capturar o toque na tela
     controller = renderer.xr.getController(0);
     controller.addEventListener('select', onSelect);
     scene.add(controller);
 
-    // --- CORREÇÃO: Gerenciamento da UI e início da sessão ---
     renderer.xr.addEventListener('sessionstart', async (e) => {
         ui.classList.add('hidden'); // Esconde a UI principal
         canvas2d.style.display = 'block'; // Mostra o canvas de desenho
-        statusEl.textContent = 'AR iniciado.';
         
         const session = renderer.xr.getSession();
         const viewerSpace = await session.requestReferenceSpace('viewer');
         hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-
-        // Carrega as artes do Firebase assim que a sessão começa
         loadArts();
     });
 
     renderer.xr.addEventListener('sessionend', () => {
         ui.classList.remove('hidden'); // Mostra a UI de novo ao sair
         canvas2d.style.display = 'none';
-        statusEl.textContent = 'Sessão AR encerrada.';
         hitTestSource = null;
     });
 
@@ -215,7 +161,7 @@
   }
 
   function animate(timestamp, frame){
-    if(frame){
+    if(frame && hitTestSource){
       const referenceSpace = renderer.xr.getReferenceSpace();
       const hitTestResults = frame.getHitTestResults(hitTestSource);
       if(hitTestResults.length > 0){
@@ -231,71 +177,81 @@
 
   async function onSelect(event){
     if(!reticle.visible) return;
-
-    // --- CORREÇÃO: Cria uma âncora para estabilizar a arte ---
-    const hitPose = event.frame.getHitTestResults(hitTestSource)[0].getPose(renderer.xr.getReferenceSpace());
-    const anchor = await event.frame.createAnchor(hitPose.transform, renderer.xr.getReferenceSpace());
-
-    const tex = new THREE.CanvasTexture(canvas2d);
-    const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true });
-    const aspect = canvas2d.width / canvas2d.height;
-    const height = 1.2;
-    const width = height * aspect;
-    const geom = new THREE.PlaneGeometry(width, height);
-    const mesh = new THREE.Mesh(geom, material);
     
-    // O mesh é adicionado à âncora, não diretamente à cena
-    // A âncora já tem a posição e rotação corretas
-    anchor.add(mesh);
-
-    // Salva a arte no Firebase
-    saveArt(mesh, width, height);
-  }
-
-  async function saveArt(mesh, width, height){
-    const imageBlob = await new Promise(r => canvas2d.toBlob(r, 'image/png'));
-    const filename = `arts/${Date.now()}.png`;
-    const storageRef = storage.ref().child(filename);
+    // CORREÇÃO: Usando a referência do frame do evento para criar a âncora
+    const referenceSpace = renderer.xr.getReferenceSpace();
+    const hitPose = event.frame.getHitTestResults(hitTestSource)[0].getPose(referenceSpace);
     
-    statusEl.textContent = 'Fazendo upload...';
     try {
-        const uploadTask = await storageRef.put(imageBlob);
-        const url = await uploadTask.ref.getDownloadURL();
-        const user = auth.currentUser;
+        const anchor = await event.frame.createAnchor(hitPose.transform, referenceSpace);
+        const tex = new THREE.CanvasTexture(canvas2d);
+        const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true, alphaTest: 0.5 });
+        const aspect = canvas2d.width / canvas2d.height;
+        const height = 1.2;
+        const width = height * aspect;
+        const geom = new THREE.PlaneGeometry(width, height);
+        const mesh = new THREE.Mesh(geom, material);
         
-        const doc = {
-            ownerUid: user ? user.uid : 'anon',
-            imageURL: url,
-            widthMeters: width,
-            heightMeters: height,
-            // Não salvamos a matriz, pois a âncora não é serializável.
-            // A arte será recarregada via GPS no futuro (lógica a ser adicionada)
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        await db.collection('arts').add(doc);
-        statusEl.textContent = 'Arte salva no Firebase!';
-        // Limpa o canvas após salvar
-        ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+        // Adiciona a arte à âncora, que já tem a posição e rotação corretas
+        scene.add(mesh); // Adiciona na cena global
+        mesh.matrix.fromArray(hitPose.transform.matrix); // Pega a posição e rotação do hit
+        mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
 
+        saveArt(mesh, width, height, anchor); // Passa a âncora se precisar salvar
     } catch(e) {
-        console.error("Erro no upload/salvamento:", e);
-        statusEl.textContent = 'Erro ao salvar.';
+        console.error("Não foi possível criar a âncora:", e);
     }
   }
 
-  async function loadArts() {
-    // Lógica para carregar artes via GPS seria adicionada aqui,
-    // mas por enquanto, focamos em fazer o posicionamento funcionar.
-    console.log("Função para carregar artes futuras.");
+  async function saveArt(mesh, width, height, anchor){
+      // A lógica de salvamento continua a mesma
+      const imageBlob = await new Promise(r => canvas2d.toBlob(r, 'image/png'));
+      const filename = `arts/${Date.now()}.png`;
+      const storageRef = storage.ref().child(filename);
+      statusEl.textContent = 'Fazendo upload...';
+      try {
+          const uploadTask = await storageRef.put(imageBlob);
+          const url = await uploadTask.ref.getDownloadURL();
+          const user = auth.currentUser;
+          // Para salvar, podemos salvar a posição/rotação em relação ao mundo
+          const doc = {
+              ownerUid: user ? user.uid : 'anon',
+              imageURL: url,
+              widthMeters: width,
+              heightMeters: height,
+              position: {x: mesh.position.x, y: mesh.position.y, z: mesh.position.z},
+              quaternion: {x: mesh.quaternion.x, y: mesh.quaternion.y, z: mesh.quaternion.z, w: mesh.quaternion.w},
+              timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          await db.collection('arts').add(doc);
+          statusEl.textContent = 'Arte salva no Firebase!';
+          ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+      } catch(e) {
+          console.error("Erro no upload/salvamento:", e);
+          statusEl.textContent = 'Erro ao salvar.';
+      }
   }
 
-  // --- Botão de salvar agora só dá a instrução ---
+  async function loadArts() {
+    // A lógica de carregamento via GPS seria implementada aqui
+    console.log("Lógica para carregar artes salvas seria executada agora.");
+  }
+  
+  // --- CORREÇÃO: Nosso botão "Iniciar AR" agora ativa o botão oficial escondido ---
+  document.getElementById('btnEnterAR').onclick = () => {
+    if (officialARButton) {
+      statusEl.textContent = 'Iniciando sessão AR...';
+      officialARButton.click();
+    } else {
+        alert('Botão de AR não está pronto. Verifique o suporte a WebXR.')
+    }
+  };
+
   document.getElementById('btnSave').onclick = ()=>{
     alert('Toque numa superfície plana (onde o anel branco aparece) para posicionar e salvar sua arte.');
   }
 
-  // Inicia tudo
+  // Inicia o Three.js
   initThree();
 
   </script>
