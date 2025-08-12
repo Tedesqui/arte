@@ -3,42 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARte no Mundo - Crie e Explore</title>
-
+    <title>ARte no Mundo - Modo Grafite</title>
+    
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
-
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-
-        #debug-panel {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 12px;
-            line-height: 1.5;
-            z-index: 10001;
-            max-width: 90%;
-            transition: opacity 0.3s;
-        }
-
-        #debug-panel.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        #loader-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #111; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 10002;
-        }
-        .spinner{border:8px solid #f3f3f3;border-top:8px solid #00aaff;border-radius:50%;width:60px;height:60px;animation:spin 1.5s linear infinite}@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-
-        #drawing-ui{display:none;position:fixed;top:0;left:0;width:100%;height:100%;flex-direction:column;background-color:rgba(0,0,0,.5);z-index:10000}
+        #loader-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10002; color: white; text-align: center; }
+        .spinner{border:8px solid #f3f3f3;border-top:8px solid #00aaff;border-radius:50%;width:60px;height:60px;animation:spin 1.5s linear infinite; margin-bottom: 20px;}
+        @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+        
+        #drawing-ui{display:none;position:fixed;top:0;left:0;width:100%;height:100%;flex-direction:column;z-index:10000}
         #drawing-canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;z-index:1}
         #toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);background-color:rgba(0,0,0,.7);padding:10px;border-radius:10px;display:flex;gap:15px;align-items:center;z-index:10}
         #drawing-controls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:10}
@@ -47,196 +23,112 @@
 </head>
 
 <body>
-    <div id="debug-panel">
-        <strong>Status:</strong> <span id="debug-status">Iniciando...</span><br>
-        <strong>Coords:</strong> <span id="debug-coords">N/A</span><br>
-        <strong>Artes Carregadas:</strong> <span id="debug-art-loaded">Não</span>
+    <div id="loader-container">
+        <div class="spinner"></div>
+        <p>Aponte o celular para o ambiente e mova-o lentamente para detectar as superfícies.</p>
     </div>
-
-    <div id="loader-container"><div class="spinner"></div></div>
 
     <div id="drawing-ui">
         <div id="toolbar">
             <label for="color-picker">Cor:</label><input type="color" id="color-picker" value="#FFFFFF">
-            <label for="brush-size">Tamanho:</label><input type="range" id="brush-size" min="1" max="20" value="5">
+            <label for="brush-size">Tamanho:</label><input type="range" id="brush-size" min="0.01" max="0.2" step="0.01" value="0.05">
         </div>
-        <canvas id="drawing-canvas"></canvas>
         <div id="drawing-controls">
-            <button id="save-art-btn" class="draw-btn">Salvar Arte</button>
-            <button id="cancel-draw-btn" class="draw-btn">Cancelar</button>
+            <button id="cancel-draw-btn" class="draw-btn">Sair</button>
         </div>
     </div>
-
+    
     <button id="toggle-draw-mode-btn">🖌️</button>
 
-    <a-scene id="ar-scene" vr-mode-ui="enabled: false" arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;" renderer="antialias: true; alpha: true">
-        <a-camera gps-new-camera="gpsMinDistance: 5; gpsMinAccuracy: 100;"></a-camera>
+    <a-scene
+        id="ar-scene"
+        vr-mode-ui="enabled: false"
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+        renderer="colorManagement: true;"
+    >
+        <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
 
     <script>
         window.addEventListener('load', () => {
-            const debugPanel = document.getElementById('debug-panel');
-            const debugStatus = document.getElementById('debug-status');
-            const debugCoords = document.getElementById('debug-coords');
-            const debugArtLoaded = document.getElementById('debug-art-loaded');
-            debugStatus.textContent = 'Aguardando GPS...';
-
             const scene = document.querySelector('a-scene');
             const camera = document.querySelector('a-camera');
-            let initialArtLoaded = false;
-            let currentLatitude = null;
-            let currentLongitude = null;
-
-            scene.addEventListener('renderstart', () => {
-                document.getElementById('loader-container').style.display = 'none';
-            });
-
-            camera.addEventListener('gps-camera-update-position', e => {
-                currentLatitude = e.detail.position.latitude;
-                currentLongitude = e.detail.position.longitude;
-                debugStatus.textContent = 'GPS OK!';
-                debugCoords.textContent = `${currentLatitude.toFixed(6)}, ${currentLongitude.toFixed(6)}`;
-                if (!initialArtLoaded) {
-                    loadSavedArtworks();
-                    initialArtLoaded = true;
-                }
-            });
-
-            function loadSavedArtworks() {
-                const savedDrawings = JSON.parse(localStorage.getItem('userDrawings') || '[]');
-                debugArtLoaded.textContent = 'Não';
-                document.querySelectorAll('.user-art').forEach(art => art.remove()); // Limpa artes antigas antes de recarregar
-                if (savedDrawings.length > 0) {
-                    savedDrawings.forEach(addDrawingToScene);
-                    debugArtLoaded.textContent = `Sim (${savedDrawings.length})`;
-                } else {
-                    debugArtLoaded.textContent = 'Nenhuma arte salva.';
-                }
-            }
-            
-            function addDrawingToScene(artwork) {
-                const anchor = document.createElement('a-entity');
-                anchor.setAttribute('gps-new-entity-place', {
-                    latitude: artwork.latitude,
-                    longitude: artwork.longitude
-                });
-                anchor.classList.add('user-art');
-
-                const plane = document.createElement('a-plane');
-                // A linha 'look-at' foi removida para que a arte fique estática no mundo
-                plane.setAttribute('material', `src: ${artwork.dataURL}; transparent: true; shader: flat;`);
-                
-                const scale = 15;
-                const ratio = artwork.width / artwork.height || 1;
-                plane.setAttribute('scale', `${scale * ratio} ${scale} 1`);
-                
-                plane.setAttribute('position', '0 1.6 -10');
-
-                anchor.appendChild(plane);
-                scene.appendChild(anchor);
-            }
-
-            function saveAndPlaceArt() {
-                if (!currentLatitude) {
-                    alert("ERRO: GPS NÃO ENCONTRADO.\n\nPara salvar sua arte, vá para um local aberto, com visão clara do céu, e espere o status no canto da tela mudar para 'GPS OK!'.");
-                    return;
-                }
-                const dataURL = canvas.toDataURL('png');
-                if (dataURL.length < 200) { alert('Desenhe algo antes de salvar!'); return; }
-                
-                const newDrawing = { latitude: currentLatitude, longitude: currentLongitude, dataURL, width: canvas.width, height: canvas.height };
-                addDrawingToScene(newDrawing);
-                
-                const savedDrawings = JSON.parse(localStorage.getItem('userDrawings') || '[]');
-                savedDrawings.push(newDrawing);
-                localStorage.setItem('userDrawings', JSON.stringify(savedDrawings));
-                
-                alert(`Arte salva em: ${currentLatitude.toFixed(4)}, ${currentLongitude.toFixed(4)}`);
-                
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                drawingUI.style.display = 'none';
-                debugPanel.classList.remove('hidden');
-                loadSavedArtworks();
-            }
-
             const drawingUI = document.getElementById('drawing-ui');
-            document.getElementById('toggle-draw-mode-btn').addEventListener('click', () => {
-                drawingUI.style.display = 'flex';
-                setupDrawingCanvas();
-                debugPanel.classList.add('hidden');
-            });
-            document.getElementById('cancel-draw-btn').addEventListener('click', () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                drawingUI.style.display = 'none';
-                debugPanel.classList.remove('hidden');
-            });
-            document.getElementById('save-art-btn').addEventListener('click', saveAndPlaceArt);
+            const loader = document.getElementById('loader-container');
+            const toggleBtn = document.getElementById('toggle-draw-mode-btn');
 
-            // Funções auxiliares de desenho (código completo)
-            const canvas = document.getElementById("drawing-canvas");
-            const ctx = canvas.getContext("2d");
             let isDrawing = false;
-            
-            const setupDrawingCanvas = () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                ctx.strokeStyle = document.getElementById("color-picker").value;
-                ctx.lineWidth = document.getElementById("brush-size").value;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-            };
+            let currentLine = null;
+            let raycaster = new THREE.Raycaster();
+            let pointer = new THREE.Vector2();
 
-            const startDrawing = (e) => {
+            scene.addEventListener('renderstart', () => loader.style.display = 'none');
+
+            function startDraw(e) {
                 isDrawing = true;
-                const t = getMousePos(e);
-                ctx.beginPath();
-                ctx.moveTo(t.x, t.y);
-            };
-
-            const draw = (e) => {
-                if (!isDrawing) return;
-                e.preventDefault();
-                e.stopPropagation();
-                ctx.lineTo(getMousePos(e).x, getMousePos(e).y);
-                ctx.stroke();
-            };
-
-            const stopDrawing = () => {
-                isDrawing = false;
-                ctx.closePath();
-            };
-
-            const getMousePos = (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const clientX = e.clientX || e.touches[0].clientX;
-                const clientY = e.clientY || e.touches[0].clientY;
-                return { x: clientX - rect.left, y: clientY - rect.top };
-            };
-            
-            document.getElementById("color-picker").onchange = (e) => ctx.strokeStyle = e.target.value;
-            document.getElementById("brush-size").oninput = (e) => ctx.lineWidth = e.target.value;
-            
-            canvas.addEventListener("mousedown", startDrawing);
-            canvas.addEventListener("mousemove", draw);
-            canvas.addEventListener("mouseup", stopDrawing);
-            canvas.addEventListener("mouseout", stopDrawing);
-            canvas.addEventListener("touchstart", startDrawing, { passive: false });
-            canvas.addEventListener("touchmove", draw, { passive: false });
-            canvas.addEventListener("touchend", stopDrawing);
-        });
-
-        // Script extra para remover o botão de VR
-        document.addEventListener('DOMContentLoaded', function() {
-            const scene = document.querySelector("a-scene");
-            if (scene) {
-                scene.addEventListener("loaded", function() {
-                    const vrButton = document.querySelector(".a-enter-vr");
-                    if (vrButton) {
-                        vrButton.style.display = "none";
-                    }
+                // Cria uma nova entidade para a linha que será desenhada
+                currentLine = document.createElement('a-entity');
+                // Adiciona o componente 'line' que será preenchido com pontos
+                currentLine.setAttribute('line', {
+                    color: document.getElementById('color-picker').value,
+                    linewidth: document.getElementById('brush-size').value * 200 // Ajuste para visualização
                 });
+                scene.appendChild(currentLine);
             }
+
+            function draw(e) {
+                if (!isDrawing) return;
+
+                // Normaliza as coordenadas do toque/mouse
+                pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+                pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                // Atualiza o raycaster com a posição da câmera e do ponteiro
+                raycaster.setFromCamera(pointer, camera.object3D);
+                
+                // Calcula a posição no espaço 3D, a 2 metros da câmera
+                // Isso simula o desenho em uma superfície próxima
+                const pos = new THREE.Vector3();
+                raycaster.ray.at(2, pos); // O número '2' define a distância do desenho
+
+                // Adiciona o novo ponto à linha
+                const lineAttr = currentLine.getAttribute('line');
+                const newPath = lineAttr.path ? `${lineAttr.path}, ${pos.x} ${pos.y} ${pos.z}` : `${pos.x} ${pos.y} ${pos.z}`;
+                
+                currentLine.setAttribute('line', 'path', newPath);
+                currentLine.setAttribute('line', 'color', document.getElementById('color-picker').value);
+                currentLine.setAttribute('line', 'linewidth', document.getElementById('brush-size').value * 200);
+            }
+
+            function stopDraw() {
+                isDrawing = false;
+                currentLine = null;
+            }
+
+            // Ativar/Desativar modo de desenho
+            toggleBtn.addEventListener('click', () => {
+                drawingUI.style.display = 'flex';
+                scene.addEventListener('mousedown', startDraw);
+                scene.addEventListener('mousemove', draw);
+                scene.addEventListener('mouseup', stopDraw);
+                scene.addEventListener('touchstart', startDraw);
+                scene.addEventListener('touchmove', draw);
+                scene.addEventListener('touchend', stopDraw);
+            });
+
+            document.getElementById('cancel-draw-btn').addEventListener('click', () => {
+                drawingUI.style.display = 'none';
+                scene.removeEventListener('mousedown', startDraw);
+                scene.removeEventListener('mousemove', draw);
+                scene.removeEventListener('mouseup', stopDraw);
+                scene.removeEventListener('touchstart', startDraw);
+                scene.removeEventListener('touchmove', draw);
+                scene.removeEventListener('touchend', stopDraw);
+            });
         });
+
+        // Script para remover o botão de VR
+        document.addEventListener('DOMContentLoaded',function(){const e=document.querySelector("a-scene");e&&e.addEventListener("loaded",function(){const t=document.querySelector(".a-enter-vr");t&&(t.style.display="none")})});
     </script>
 </body>
 </html>
