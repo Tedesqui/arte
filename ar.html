@@ -8,22 +8,40 @@
     html,body { height:100%; margin:0; background:#000; color:#fff; font-family:system-ui, Arial; }
     #canvas2d { position:fixed; left:0; top:0; touch-action:none; z-index:2; display:none; }
     #threeContainer { position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; }
-    #ARButton { bottom: 20px !important; top: unset !important; left: 50%; transform: translateX(-50%); background-color: #007aff; border-radius: 30px; position: fixed; z-index: 10000; }
+    /* --- NOSSO BOTÃO MANUAL --- */
+    #manual-ar-button {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10000;
+        background-color: #007aff;
+        color: white;
+        border: none;
+        border-radius: 30px;
+        padding: 15px 30px;
+        font-size: 20px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .hidden { display: none; }
     /* UI do desenho */
     #drawingUI { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; }
-    .hidden { display: none; }
     label{font-size:13px}
     input[type=color]{width:40px;height:28px;padding:0;border:0}
     input[type=range]{width:120px}
-    #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; }
+    #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; padding: 8px 12px;}
   </style>
 </head>
 <body>
   <button id="btnLogout">Sair</button>
+  
+  <button id="manual-ar-button" class="hidden">ENTRAR NA REALIDADE AUMENTADA</button>
+
   <div id="drawingUI" class="hidden">
     <label>Cor:</label>
     <input id="colorPicker" type="color" value="#ff0000" />
-    <label style="margin-left:8px">Espessura:</label>
+    <label>Espessura:</label>
     <input id="thickness" type="range" min="1" max="60" value="6" />
     <button id="btnClear">Limpar</button>
   </div>
@@ -31,7 +49,6 @@
   <div id="threeContainer"></div>
 
   <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.156.0/examples/jsm/webxr/ARButton.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -45,28 +62,26 @@
     const db = firebase.firestore();
     const storage = firebase.storage();
 
+    const manualArButton = document.getElementById('manual-ar-button');
+
     // --- GUARDA DE AUTENTICAÇÃO ---
     auth.onAuthStateChanged(user => {
       if (!user) {
-        // Se não houver usuário, volta para a página de login
-        console.log("Nenhum usuário logado, redirecionando...");
         window.location.href = 'index.html';
       } else {
-        // Se o usuário estiver logado, inicia a aplicação de AR
-        console.log("Usuário encontrado, iniciando AR...");
+        // Usuário está logado, inicia a preparação da AR
         initAR();
       }
     });
 
-    document.getElementById('btnLogout').onclick = () => {
-        auth.signOut(); // O onAuthStateChanged vai redirecionar
-    };
+    document.getElementById('btnLogout').onclick = () => auth.signOut();
     
     // O resto do código é a lógica da AR que já tínhamos
     const canvas2d = document.getElementById('canvas2d');
     const ctx = canvas2d.getContext('2d');
     const drawingUI = document.getElementById('drawingUI');
 
+    // Funções de desenho (minificadas para economizar espaço)
     function resizeCanvas(){canvas2d.width = window.innerWidth;canvas2d.height = window.innerHeight}
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
@@ -74,7 +89,19 @@
 
     let camera, scene, renderer, reticle, controller, hitTestSource;
 
-    function initAR() {
+    async function initAR() {
+      // Verifica a compatibilidade ANTES de mostrar o botão
+      if ('xr' in navigator) {
+        const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (isSupported) {
+          manualArButton.classList.remove('hidden'); // Mostra nosso botão
+        } else {
+          alert('Seu dispositivo não suporta WebXR para AR.');
+        }
+      } else {
+        alert('Seu navegador não tem suporte a WebXR.');
+      }
+
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
@@ -84,9 +111,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
       document.getElementById('threeContainer').appendChild(renderer.domElement);
-
-      const arButton = THREE.ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
-      document.body.appendChild(arButton);
 
       const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
       reticle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial());
@@ -98,7 +122,21 @@
       controller.addEventListener('select', onSelect);
       scene.add(controller);
 
+      // --- CONTROLE MANUAL DA SESSÃO ---
+      manualArButton.addEventListener('click', async () => {
+        try {
+          const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test']
+          });
+          await renderer.xr.setSession(session);
+        } catch(e) {
+          alert("Falha ao iniciar a sessão de AR: " + e.message);
+        }
+      });
+
       renderer.xr.addEventListener('sessionstart', async () => {
+          manualArButton.classList.add('hidden'); // Esconde o botão após iniciar
+          btnLogout.classList.add('hidden');
           drawingUI.classList.remove('hidden');
           canvas2d.style.display = 'block';
           const session = renderer.xr.getSession();
@@ -106,10 +144,7 @@
           hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
           loadArts();
       });
-      renderer.xr.addEventListener('sessionend', () => {
-          drawingUI.classList.add('hidden');
-          canvas2d.style.display = 'none';
-      });
+      renderer.xr.addEventListener('sessionend', () => window.location.reload());
 
       renderer.setAnimationLoop(animate);
     }
