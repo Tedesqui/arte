@@ -67,7 +67,7 @@
         </div>
     </div>
     
-    <button id="toggle-draw-mode-btn">💨</button>
+    <button id="toggle-draw-mode-btn">🖌️</button>
 
     <a-scene id="ar-scene" vr-mode-ui="enabled: false" arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;" renderer="antialias: true; alpha: true">
         <a-camera gps-new-camera="gpsMinDistance: 5; gpsMinAccuracy: 100;"></a-camera>
@@ -105,7 +105,7 @@
             function loadSavedArtworks() {
                 const savedDrawings = JSON.parse(localStorage.getItem('userDrawings') || '[]');
                 debugArtLoaded.textContent = 'Não';
-                document.querySelectorAll('.user-art').forEach(art => art.remove()); // Limpa artes antigas antes de recarregar
+                document.querySelectorAll('.user-art').forEach(art => art.remove()); 
                 if (savedDrawings.length > 0) {
                     savedDrawings.forEach(addDrawingToScene);
                     debugArtLoaded.textContent = `Sim (${savedDrawings.length})`;
@@ -114,31 +114,24 @@
                 }
             }
             
-            /**
-             * Função corrigida para ancorar a arte no ambiente
-             */
             function addDrawingToScene(artwork) {
-                // 1. Cria uma entidade "âncora" na localização GPS
                 const anchor = document.createElement('a-entity');
                 anchor.setAttribute('gps-new-entity-place', {
                     latitude: artwork.latitude,
                     longitude: artwork.longitude
                 });
-                anchor.classList.add('user-art'); // Adiciona uma classe para poder limpar depois
+                anchor.classList.add('user-art');
 
-                // 2. Cria o plano visível com o desenho
                 const plane = document.createElement('a-plane');
-                plane.setAttribute('look-at', '[gps-new-camera]'); // Faz a arte sempre virar para você
+                plane.setAttribute('look-at', '[gps-new-camera]');
                 plane.setAttribute('material', `src: ${artwork.dataURL}; transparent: true; shader: flat;`);
                 
                 const scale = 15;
                 const ratio = artwork.width / artwork.height || 1;
                 plane.setAttribute('scale', `${scale * ratio} ${scale} 1`);
                 
-                // 3. Posiciona o desenho 10 metros À FRENTE do ponto da âncora
                 plane.setAttribute('position', '0 1.6 -10');
 
-                // 4. Anexa o plano à âncora e a âncora à cena
                 anchor.appendChild(plane);
                 scene.appendChild(anchor);
             }
@@ -166,7 +159,6 @@
                 loadSavedArtworks();
             }
 
-            // --- LÓGICA DOS BOTÕES DA UI DE DESENHO ---
             const drawingUI = document.getElementById('drawing-ui');
             document.getElementById('toggle-draw-mode-btn').addEventListener('click', () => {
                 drawingUI.style.display = 'flex';
@@ -180,12 +172,10 @@
             });
             document.getElementById('save-art-btn').addEventListener('click', saveAndPlaceArt);
 
-            // Funções auxiliares de desenho
             const canvas=document.getElementById("drawing-canvas"),ctx=canvas.getContext("2d");let isDrawing=!1;const setupDrawingCanvas=()=>{canvas.width=window.innerWidth,canvas.height=window.innerHeight,ctx.strokeStyle=document.getElementById("color-picker").value,ctx.lineWidth=document.getElementById("brush-size").value,ctx.lineCap="round",ctx.lineJoin="round"},startDrawing=e=>{isDrawing=!0;const t=getMousePos(e);ctx.beginPath(),ctx.moveTo(t.x,t.y)},draw=e=>{isDrawing&&(e.preventDefault(),e.stopPropagation(),ctx.lineTo(getMousePos(e).x,getMousePos(e).y),ctx.stroke())},stopDrawing=()=>{isDrawing=!1,ctx.closePath()},getMousePos=e=>{const t=canvas.getBoundingClientRect(),o=e.clientX||e.touches[0].clientX,n=e.clientY||e.touches[0].clientY;return{x:o-t.left,y:n-t.top}};
             document.getElementById("color-picker").onchange=e=>ctx.strokeStyle=e.target.value,document.getElementById("brush-size").oninput=e=>ctx.lineWidth=e.target.value,canvas.addEventListener("mousedown",startDrawing),canvas.addEventListener("mousemove",draw),canvas.addEventListener("mouseup",stopDrawing),canvas.addEventListener("mouseout",stopDrawing),canvas.addEventListener("touchstart",startDrawing,{passive:!1}),canvas.addEventListener("touchmove",draw,{passive:!1}),canvas.addEventListener("touchend",stopDrawing);
         });
 
-        // Script extra para remover o botão de VR
         document.addEventListener('DOMContentLoaded',function(){const e=document.querySelector("a-scene");e&&e.addEventListener("loaded",function(){const t=document.querySelector(".a-enter-vr");t&&(t.style.display="none")})});
     </script>
 </body>
