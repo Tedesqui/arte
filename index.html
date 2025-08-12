@@ -15,11 +15,12 @@
     input[type=range]{width:120px}
     #status{font-size:12px;margin-top:6px;color:#ddd}
     #loginBox{display:flex;flex-direction:column;gap:6px}
-    #threeContainer{width:100%;height:100%;}
-    #ARButton { /* Estilo do botão oficial */
+    #threeContainer{position:fixed; top:0; left:0; width:100%;height:100%; z-index:-1;}
+    #ARButton {
         bottom: 20px !important; top: unset !important;
         left: 50%; transform: translateX(-50%);
         background-color: #007aff; border-radius: 30px;
+        position: fixed; z-index: 10000;
     }
   </style>
 </head>
@@ -41,7 +42,6 @@
         <button id="btnLogout">Sair</button>
       </div>
     </div>
-
     <hr />
     <div id="controls" class="hidden">
       <div>
@@ -52,7 +52,7 @@
       </div>
       <div style="margin-top:8px">
         <button id="btnClear">Limpar Desenho</button>
-        <button id="btnSave">Instruções</button>
+        <button id="btnHelp">Instruções</button>
       </div>
       <div id="status">Status: aguardando</div>
     </div>
@@ -63,7 +63,6 @@
 
   <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
   <script src="https://unpkg.com/three@0.156.0/examples/jsm/webxr/ARButton.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -71,17 +70,9 @@
 
   <script>
   /******************************************************************
-   * CONFIGURAÇÃO FIREBASE
+   * CONFIGURAÇÃO FIREBASE E VARIÁVEIS GLOBAIS
    ******************************************************************/
-  const firebaseConfig = {
-    apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
-    authDomain: "tomorrow-art-2694d.firebaseapp.com",
-    projectId: "tomorrow-art-2694d",
-    storageBucket: "tomorrow-art-2694d.appspot.com",
-    messagingSenderId: "932174355356",
-    appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
-    measurementId: "G-DNJKP24S8K"
-  };
+  const firebaseConfig = { /* ... Seus dados do Firebase ... */ };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
   const db = firebase.firestore();
@@ -93,74 +84,75 @@
   const userEmail = document.getElementById('userEmail');
   const controls = document.getElementById('controls');
   const statusEl = document.getElementById('status');
+  const canvas2d = document.getElementById('canvas2d');
+  const ctx = canvas2d.getContext('2d');
+  
+  let arInitialized = false; // Flag para garantir que a AR só seja iniciada uma vez
 
   /******************************************************************
-   * AUTENTICAÇÃO
+   * AUTENTICAÇÃO - O PONTO DE PARTIDA DE TUDO
    ******************************************************************/
   auth.onAuthStateChanged(user => {
     if (user) {
+      // Usuário está logado
       loginBox.classList.add('hidden');
       userInfo.classList.remove('hidden');
       controls.classList.remove('hidden');
       userEmail.textContent = user.email;
-      statusEl.textContent = 'Logado. Clique em "ENTER AR" para começar.';
+      statusEl.textContent = 'Logado. Preparando AR...';
+
+      // --- PONTO CRÍTICO: INICIA A AR SOMENTE APÓS O LOGIN CONFIRMADO ---
+      if (!arInitialized) {
+        initAR();
+        arInitialized = true;
+      }
     } else {
+      // Usuário deslogado
       loginBox.classList.remove('hidden');
       userInfo.classList.add('hidden');
       controls.classList.add('hidden');
       const arButton = document.getElementById('ARButton');
-      if (arButton) arButton.style.display = 'none'; // Esconde o botão se deslogar
+      if (arButton) arButton.remove(); // Remove o botão de AR se existir
+      arInitialized = false; // Reseta o status da AR
     }
   });
-  document.getElementById('btnLogin').onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.signInWithEmailAndPassword(e,t)}catch(e){alert("Erro login: "+e.message)}};document.getElementById("btnRegister").onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.createUserWithEmailAndPassword(e,t),alert("Conta criada, você está logado.")}catch(e){alert("Erro registrar: "+e.message)}};document.getElementById("btnLogout").onclick=()=>auth.signOut();
-
+  
+  // Funções de clique dos botões de login
+  document.getElementById('btnLogin').onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.signInWithEmailAndPassword(e,t)}catch(e){alert("Erro login: "+e.message)}};
+  document.getElementById('btnRegister').onclick=async()=>{const e=document.getElementById("email").value,t=document.getElementById("password").value;try{await auth.createUserWithEmailAndPassword(e,t),alert("Conta criada, você está logado.")}catch(e){alert("Erro registrar: "+e.message)}};
+  document.getElementById('btnLogout').onclick = () => auth.signOut();
 
   /******************************************************************
    * Canvas 2D (Desenho)
    ******************************************************************/
-  const canvas2d=document.getElementById("canvas2d"),ctx=canvas2d.getContext("2d");function resizeCanvas(){canvas2d.width=window.innerWidth,canvas2d.height=window.innerHeight}window.addEventListener("resize",resizeCanvas),resizeCanvas();let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
+  function resizeCanvas(){canvas2d.width = window.innerWidth;canvas2d.height = window.innerHeight}
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
 
   /******************************************************************
    * Three.js + WebXR
    ******************************************************************/
-  let camera, scene, renderer;
-  let reticle, controller;
-  let hitTestSource = null;
+  let camera, scene, renderer, reticle, controller, hitTestSource;
 
-  const threeContainer = document.getElementById('threeContainer');
-  
-  // A inicialização agora acontece assim que o script carrega
-  function initThree(){
+  // ESTA FUNÇÃO AGORA SÓ É CHAMADA QUANDO O USUÁRIO ESTÁ LOGADO
+  function initAR() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-    light.position.set(0.5, 1, 0.25);
-    scene.add(light);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
     
     renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
-    threeContainer.appendChild(renderer.domElement);
+    document.getElementById('threeContainer').appendChild(renderer.domElement);
 
-    // --- CORREÇÃO: O botão é criado e adicionado diretamente. Ele se mostrará se o WebXR for compatível. ---
-    const arButton = THREE.ARButton.createButton(renderer, {
-      requiredFeatures: ['hit-test', 'anchors']
-    });
+    const arButton = THREE.ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
     document.body.appendChild(arButton);
-    if(auth.currentUser === null) arButton.style.display = 'none'; // Garante que ele comece escondido se não houver usuário
+    statusEl.textContent = 'Clique em "ENTER AR" para começar.';
 
-    auth.onAuthStateChanged(user => {
-        if(user) {
-            arButton.style.display = 'block'; // Mostra o botão ao logar
-        } else {
-            arButton.style.display = 'none'; // Esconde ao deslogar
-        }
-    });
-    
     const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
-    const ringMat = new THREE.MeshBasicMaterial();
-    reticle = new THREE.Mesh(ringGeo, ringMat);
+    reticle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial());
     reticle.matrixAutoUpdate = false;
     reticle.visible = false;
     scene.add(reticle);
@@ -170,20 +162,14 @@
     scene.add(controller);
 
     renderer.xr.addEventListener('sessionstart', async () => {
-        ui.classList.add('hidden'); // Esconde a UI principal
-        canvas2d.style.display = 'block'; // Mostra o canvas de desenho
-        
+        ui.classList.add('hidden');
+        canvas2d.style.display = 'block';
         const session = renderer.xr.getSession();
         const viewerSpace = await session.requestReferenceSpace('viewer');
         hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
         loadArts();
     });
-
-    renderer.xr.addEventListener('sessionend', () => {
-        ui.classList.remove('hidden'); 
-        canvas2d.style.display = 'none';
-        hitTestSource = null;
-    });
+    renderer.xr.addEventListener('sessionend', () => window.location.reload());
 
     renderer.setAnimationLoop(animate);
   }
@@ -196,16 +182,13 @@
         const hit = hitTestResults[0];
         reticle.visible = true;
         reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-      } else {
-        reticle.visible = false;
-      }
+      } else { reticle.visible = false; }
     }
     renderer.render(scene, camera);
   }
 
-  function onSelect(event){
+  function onSelect(){
     if(!reticle.visible) return;
-
     const tex = new THREE.CanvasTexture(canvas2d);
     const material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true, alphaTest: 0.5 });
     const aspect = canvas2d.width / canvas2d.height;
@@ -213,11 +196,9 @@
     const width = height * aspect;
     const geom = new THREE.PlaneGeometry(width, height);
     const mesh = new THREE.Mesh(geom, material);
-    
     mesh.matrix.copy(reticle.matrix);
     mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
     scene.add(mesh);
-
     saveArt(mesh, width, height);
   }
 
@@ -231,25 +212,18 @@
           const url = await uploadTask.ref.getDownloadURL();
           const user = auth.currentUser;
           const doc = {
-              ownerUid: user ? user.uid : 'anon',
-              imageURL: url,
-              widthMeters: width,
-              heightMeters: height,
+              ownerUid: user.uid, imageURL: url, widthMeters: width, heightMeters: height,
               position: {x: mesh.position.x, y: mesh.position.y, z: mesh.position.z},
               quaternion: {x: mesh.quaternion.x, y: mesh.quaternion.y, z: mesh.quaternion.z, w: mesh.quaternion.w},
               timestamp: firebase.firestore.FieldValue.serverTimestamp()
           };
           await db.collection('arts').add(doc);
-          statusEl.textContent = 'Arte salva! Toque para posicionar outra.';
+          statusEl.textContent = 'Arte salva!';
           ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-      } catch(e) {
-          console.error("Erro no upload/salvamento:", e);
-          statusEl.textContent = 'Erro ao salvar.';
-      }
+      } catch(e) { console.error(e); statusEl.textContent = 'Erro ao salvar.'; }
   }
 
   async function loadArts() {
-    console.log("Carregando artes do Firebase...");
     try {
         const snap = await db.collection('arts').orderBy('timestamp', 'desc').limit(20).get();
         snap.forEach(doc => {
@@ -259,25 +233,17 @@
                 const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 });
                 const geom = new THREE.PlaneGeometry(data.widthMeters, data.heightMeters);
                 const mesh = new THREE.Mesh(geom, mat);
-                
                 mesh.position.set(data.position.x, data.position.y, data.position.z);
                 mesh.quaternion.set(data.quaternion.x, data.quaternion.y, data.quaternion.z, data.quaternion.w);
-                
                 scene.add(mesh);
             });
         });
-    } catch(e) {
-        console.error("Erro ao carregar artes:", e);
-    }
+    } catch(e) { console.error("Erro ao carregar artes:", e); }
   }
   
-  document.getElementById('btnSave').onclick = ()=>{
+  document.getElementById('btnHelp').onclick = ()=>{
     alert('Para salvar, desenhe algo na tela e depois toque numa superfície plana no mundo real (onde o anel branco aparece) para posicionar sua arte.');
   }
-
-  // Inicia o Three.js assim que o script principal é lido
-  initThree();
-
   </script>
 </body>
 </html>
