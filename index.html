@@ -4,11 +4,17 @@
   <meta charset="utf-8">
   <title>AR Graffiti GPS</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  
+  <!-- A-Frame & AR.js -->
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  
+  <!-- Firebase compat (mais simples para integração rápida) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
   <style>
+    body { margin:0; overflow:hidden; }
     #drawCanvas {
       position: absolute;
       top: 0; left: 0;
@@ -23,10 +29,19 @@
       border-radius: 5px;
       color: white;
       font-family: sans-serif;
+      z-index: 999;
+    }
+    button {
+      background: #ff4444;
+      border: none;
+      padding: 5px 10px;
+      color: white;
+      border-radius: 3px;
+      cursor: pointer;
     }
   </style>
 </head>
-<body style="margin:0; overflow:hidden;">
+<body>
 
 <a-scene
   vr-mode-ui="enabled: false"
@@ -41,11 +56,15 @@
 </div>
 
 <script>
-  // 🔹 1. Configuração do Firebase (substitua pelos seus dados)
+  // 🔹 1. Configuração do Firebase (suas credenciais)
   const firebaseConfig = {
     apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
     authDomain: "tomorrow-art-2694d.firebaseapp.com",
-    projectId: "tomorrow-art-2694d"
+    projectId: "tomorrow-art-2694d",
+    storageBucket: "tomorrow-art-2694d.firebasestorage.app",
+    messagingSenderId: "932174355356",
+    appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
+    measurementId: "G-DNJKP24S8K"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
@@ -84,7 +103,11 @@
       }).then(() => {
         alert("Arte salva!");
         ctx.clearRect(0,0,canvas.width,canvas.height);
+      }).catch(err => {
+        console.error("Erro ao salvar: ", err);
       });
+    }, err => {
+      alert("Erro ao acessar GPS");
     });
   }
 
