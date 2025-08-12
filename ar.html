@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Graffiti</title>
+  <style>
+    html,body { height:100%; margin:0; background:#000; color:#fff; font-family:system-ui, Arial; }
+    #canvas2d { position:fixed; left:0; top:0; touch-action:none; z-index:2; display:none; }
+    #threeContainer { position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; }
+    #ARButton { bottom: 20px !important; top: unset !important; left: 50%; transform: translateX(-50%); background-color: #007aff; border-radius: 30px; position: fixed; z-index: 10000; }
+    /* UI do desenho */
+    #drawingUI { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 9999; background: rgba(0,0,0,0.45); padding: 10px; border-radius: 8px; display: flex; gap: 15px; align-items: center; }
+    .hidden { display: none; }
+    label{font-size:13px}
+    input[type=color]{width:40px;height:28px;padding:0;border:0}
+    input[type=range]{width:120px}
+    #btnLogout { position: fixed; top: 10px; right: 10px; z-index: 10000; }
+  </style>
+</head>
+<body>
+  <button id="btnLogout">Sair</button>
+  <div id="drawingUI" class="hidden">
+    <label>Cor:</label>
+    <input id="colorPicker" type="color" value="#ff0000" />
+    <label style="margin-left:8px">Espessura:</label>
+    <input id="thickness" type="range" min="1" max="60" value="6" />
+    <button id="btnClear">Limpar</button>
+  </div>
+  <canvas id="canvas2d"></canvas>
+  <div id="threeContainer"></div>
+
+  <script src="https://unpkg.com/three@0.156.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.156.0/examples/jsm/webxr/ARButton.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const firebaseConfig = { /* ... Seus dados do Firebase ... */ };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    // --- GUARDA DE AUTENTICAÇÃO ---
+    auth.onAuthStateChanged(user => {
+      if (!user) {
+        // Se não houver usuário, volta para a página de login
+        console.log("Nenhum usuário logado, redirecionando...");
+        window.location.href = 'index.html';
+      } else {
+        // Se o usuário estiver logado, inicia a aplicação de AR
+        console.log("Usuário encontrado, iniciando AR...");
+        initAR();
+      }
+    });
+
+    document.getElementById('btnLogout').onclick = () => {
+        auth.signOut(); // O onAuthStateChanged vai redirecionar
+    };
+    
+    // O resto do código é a lógica da AR que já tínhamos
+    const canvas2d = document.getElementById('canvas2d');
+    const ctx = canvas2d.getContext('2d');
+    const drawingUI = document.getElementById('drawingUI');
+
+    function resizeCanvas(){canvas2d.width = window.innerWidth;canvas2d.height = window.innerHeight}
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    let drawing=!1,last=null;const colorInput=document.getElementById("colorPicker"),thicknessInput=document.getElementById("thickness");function getPointer(e){return e.touches?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}canvas2d.addEventListener("pointerdown",e=>{drawing=!0,last=getPointer(e)}),canvas2d.addEventListener("pointermove",e=>{if(!drawing)return;const t=getPointer(e);ctx.strokeStyle=colorInput.value,ctx.lineWidth=thicknessInput.value,ctx.lineCap="round",ctx.beginPath(),ctx.moveTo(last.x,last.y),ctx.lineTo(t.x,t.y),ctx.stroke(),last=t}),window.addEventListener("pointerup",()=>{drawing=!1,last=null}),document.getElementById("btnClear").onclick=()=>{ctx.clearRect(0,0,canvas2d.width,canvas2d.height)};
+
+    let camera, scene, renderer, reticle, controller, hitTestSource;
+
+    function initAR() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
+      
+      renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.getElementById('threeContainer').appendChild(renderer.domElement);
+
+      const arButton = THREE.ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+      document.body.appendChild(arButton);
+
+      const ringGeo = new THREE.RingGeometry(0.06,0.08,32).rotateX(-Math.PI/2);
+      reticle = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial());
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+
+      renderer.xr.addEventListener('sessionstart', async () => {
+          drawingUI.classList.remove('hidden');
+          canvas2d.style.display = 'block';
+          const session = renderer.xr.getSession();
+          const viewerSpace = await session.requestReferenceSpace('viewer');
+          hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+          loadArts();
+      });
+      renderer.xr.addEventListener('sessionend', () => {
+          drawingUI.classList.add('hidden');
+          canvas2d.style.display = 'none';
+      });
+
+      renderer.setAnimationLoop(animate);
+    }
+
+    function animate(timestamp, frame){
+      if(frame && hitTestSource){
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const hitTestResults = frame.getHitTestResults(hitTestSource);
+        if(hitTestResults.length > 0){
+          const hit = hitTestResults[0];
+          reticle.visible = true;
+          reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+        } else { reticle.visible = false; }
+      }
+      renderer.render(scene, camera);
+    }
+    
+    // Funções onSelect, saveArt, loadArts (sem alterações)
+    function onSelect(){if(!reticle.visible)return;const e=new THREE.CanvasTexture(canvas2d),t=new THREE.MeshBasicMaterial({map:e,side:THREE.DoubleSide,transparent:!0,alphaTest:.5}),o=canvas2d.width/canvas2d.height,s=1.2,a=s*o,n=new THREE.PlaneGeometry(a,s),i=new THREE.Mesh(n,t);i.matrix.copy(reticle.matrix),i.matrix.decompose(i.position,i.quaternion,i.scale),scene.add(i),saveArt(i,a,s)}async function saveArt(e,t,o){const s=await new Promise(e=>canvas2d.toBlob(e,"image/png")),a=`arts/${Date.now()}.png`,n=storage.ref().child(a);try{const i=await n.put(s),r=await i.ref.getDownloadURL(),d=auth.currentUser,l={ownerUid:d.uid,imageURL:r,widthMeters:t,heightMeters:o,position:{x:e.position.x,y:e.position.y,z:e.position.z},quaternion:{x:e.quaternion.x,y:e.quaternion.y,z:e.quaternion.z,w:e.quaternion.w},timestamp:firebase.firestore.FieldValue.serverTimestamp()};await db.collection("arts").add(l),ctx.clearRect(0,0,canvas2d.width,canvas2d.height)}catch(e){console.error(e)}}async function loadArts(){try{const e=await db.collection("arts").orderBy("timestamp","desc").limit(20).get();e.forEach(e=>{const t=e.data(),o=new THREE.TextureLoader;o.load(t.imageURL,e=>{const o=new THREE.MeshBasicMaterial({map:e,side:THREE.DoubleSide,transparent:!0,alphaTest:.5}),s=new THREE.PlaneGeometry(t.widthMeters,t.heightMeters),a=new THREE.Mesh(s,o);a.position.set(t.position.x,t.position.y,t.position.z),a.quaternion.set(t.quaternion.x,t.quaternion.y,t.quaternion.z,t.quaternion.w),scene.add(a)})})}catch(e){console.error("Erro ao carregar artes:",e)}}
+
+  });
+  </script>
+</body>
+</html>
