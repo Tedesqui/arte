@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AR Graffiti - Login</title>
+  <style>
+    body, html { height:100%; margin:0; background:#121212; color:#fff; font-family:system-ui, Arial; display: flex; justify-content: center; align-items: center; text-align: center; }
+    #container { background: #242424; padding: 30px; border-radius: 8px; width: 300px; }
+    #loginBox { display:flex; flex-direction:column; gap:10px; }
+    #btns { margin-top:15px; display:flex; gap:10px; }
+    input { padding: 10px; border-radius: 5px; border: 1px solid #444; background: #333; color: white; }
+    button { flex-grow: 1; padding: 10px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
+    #status { margin-top: 15px; color: #aaa; min-height: 20px; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h1>AR Graffiti</h1>
+    <div id="loginBox">
+      <input id="email" type="email" placeholder="seu@email.com" />
+      <input id="password" type="password" placeholder="senha" />
+      <div id="btns">
+        <button id="btnLogin">Entrar</button>
+        <button id="btnRegister">Criar conta</button>
+      </div>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const firebaseConfig = {
+        apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
+        authDomain: "tomorrow-art-2694d.firebaseapp.com",
+        projectId: "tomorrow-art-2694d",
+        storageBucket: "tomorrow-art-2694d.appspot.com",
+        messagingSenderId: "932174355356",
+        appId: "1:932174355356:web:a4f30e7b3e15b5f1564659",
+        measurementId: "G-DNJKP24S8K"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const statusEl = document.getElementById('status');
+
+      // Se o usuário já estiver logado, redireciona imediatamente
+      auth.onAuthStateChanged(user => {
+        if (user) {
+          statusEl.textContent = 'Login bem-sucedido! Redirecionando...';
+          // Redireciona para a página de AR
+          window.location.href = 'ar.html';
+        }
+      });
+
+      document.getElementById('btnLogin').addEventListener('click', async () => {
+        const email = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
+        statusEl.textContent = 'Entrando...';
+        try {
+          await auth.signInWithEmailAndPassword(email, pass);
+          // O onAuthStateChanged vai cuidar do redirecionamento
+        } catch(e) {
+          statusEl.textContent = `Erro: ${e.message}`;
+        }
+      });
+
+      document.getElementById('btnRegister').addEventListener('click', async () => {
+        const email = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
+        statusEl.textContent = 'Criando conta...';
+        try {
+          await auth.createUserWithEmailAndPassword(email, pass);
+          // O onAuthStateChanged vai cuidar do redirecionamento
+        } catch(e) {
+          statusEl.textContent = `Erro: ${e.message}`;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
