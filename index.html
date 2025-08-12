@@ -1,271 +1,128 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ARte no Mundo - Grafite em Superfícies</title>
-    
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
-        #ar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #ar-button {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            padding: 12px 24px; font-size: 18px; background-color: #007aff; color: white;
-            border: none; border-radius: 30px; cursor: pointer; pointer-events: auto;
-        }
-        #drawing-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            display: none; z-index: 10001; pointer-events: auto;
-        }
-        #drawing-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
-        #toolbar, #controls {
-            position: absolute; left: 50%; transform: translateX(-50%);
-            background-color: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px;
-            display: flex; gap: 15px; align-items: center;
-        }
-        #toolbar { top: 10px; }
-        #controls { bottom: 20px; }
-        #toolbar label { color: white; }
-        .draw-btn { padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-weight: bold; }
-        #confirm-draw-btn { background-color: #28a745; }
-        #cancel-draw-btn { background-color: #dc3545; }
-        #toggle-draw-btn {
-            position: absolute; bottom: 20px; right: 20px;
-            background-color: #00aaff; color: #fff; border: none; border-radius: 50%;
-            width: 60px; height: 60px; font-size: 32px; line-height: 60px; text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,.4); cursor: pointer; pointer-events: auto;
-            display: none; /* Começa escondido */
-        }
-        #info-box {
-            position: absolute; top: 10px; left: 10px; background-color: rgba(0,0,0,0.6);
-            color: white; padding: 10px; border-radius: 8px; pointer-events: none;
-            display: none; /* Começa escondido */
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>AR Graffiti GPS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <style>
+    #drawCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+    }
+    #controls {
+      position: fixed;
+      bottom: 10px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.5);
+      padding: 5px;
+      border-radius: 5px;
+      color: white;
+      font-family: sans-serif;
+    }
+  </style>
 </head>
+<body style="margin:0; overflow:hidden;">
 
-<body>
-    <a-scene 
-        id="ar-scene"
-        webxr="optionalFeatures: hit-test, dom-overlay; overlayElement: #ar-overlay;"
-        ar-hit-test="target: #reticle; enabled: false;"
-        vr-mode-ui="enabled: false"
-        renderer="colorManagement: true"
-    >
-        <a-assets>
-             <canvas id="paint-canvas" width="512" height="512" crossOrigin="anonymous"></canvas>
-        </a-assets>
-        
-        <a-camera></a-camera>
+<a-scene
+  vr-mode-ui="enabled: false"
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false;"
+  renderer="logarithmicDepthBuffer: true;">
+</a-scene>
 
-        <a-entity id="reticle" visible="false">
-             <a-ring color="#007aff" radius-inner="0.15" radius-outer="0.2"></a-ring>
-        </a-entity>
+<canvas id="drawCanvas"></canvas>
+<div id="controls">
+  Toque para desenhar | <button onclick="saveDrawing()">Salvar</button>
+</div>
 
-        <a-entity id="art-preview" visible="false">
-            <a-plane id="art-preview-plane" position="0 0 0" width="1" height="1"></a-plane>
-        </a-entity>
-    </a-scene>
+<script>
+  // 🔹 1. Configuração do Firebase (substitua pelos seus dados)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDayAFq_87J5G98mT2ASTwP2JAKRvkyE40",
+    authDomain: "tomorrow-art-2694d.firebaseapp.com",
+    projectId: "tomorrow-art-2694d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
-    <div id="ar-overlay">
-        <button id="ar-button">Entrar em AR</button>
-        <button id="toggle-draw-btn">🖌️</button>
-        <div id="info-box">Mova o celular para detectar superfícies</div>
+  // 🔹 2. Canvas para desenho
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  let drawing = false;
 
-        <div id="drawing-overlay">
-            <div id="toolbar">
-                <label for="color-picker">Cor:</label><input type="color" id="color-picker" value="#ff0000">
-                <label for="brush-size">Tamanho:</label><input type="range" id="brush-size" min="1" max="30" value="10">
-            </div>
-            <canvas id="drawing-canvas"></canvas>
-            <div id="controls">
-                <button id="confirm-draw-btn" class="draw-btn">Confirmar Desenho</button>
-                <button id="cancel-draw-btn" class="draw-btn">Cancelar</button>
-            </div>
-        </div>
-    </div>
+  document.body.addEventListener('touchstart', e => {
+    drawing = true;
+    ctx.beginPath();
+    ctx.moveTo(e.touches[0].clientX, e.touches[0].clientY);
+  });
+  document.body.addEventListener('touchmove', e => {
+    if (!drawing) return;
+    ctx.lineTo(e.touches[0].clientX, e.touches[0].clientY);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  });
+  document.body.addEventListener('touchend', () => drawing = false);
 
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const sceneEl = document.querySelector('a-scene');
-        const arButton = document.getElementById('ar-button');
-        const toggleDrawBtn = document.getElementById('toggle-draw-btn');
-        const infoBox = document.getElementById('info-box');
-        
-        const drawingOverlay = document.getElementById('drawing-overlay');
-        const drawingCanvas = document.getElementById('drawing-canvas');
-        const drawingCtx = drawingCanvas.getContext('2d');
-        const paintCanvas = document.getElementById('paint-canvas');
-        const paintCtx = paintCanvas.getContext('2d');
-
-        const reticle = document.getElementById('reticle');
-        const artPreview = document.getElementById('art-preview');
-        const artPreviewPlane = document.getElementById('art-preview-plane');
-
-        let appState = 'idle'; // idle | scanning | drawing | placing
-        let isPainting = false;
-
-        // --- LÓGICA DE ENTRADA EM AR ---
-        arButton.addEventListener('click', () => sceneEl.enterAR());
-
-        sceneEl.addEventListener('enter-vr', () => {
-            arButton.style.display = 'none';
-            toggleDrawBtn.style.display = 'block';
-            infoBox.style.display = 'block';
-            appState = 'scanning';
-            loadSavedArt();
-        });
-        
-        sceneEl.addEventListener('exit-vr', () => window.location.reload());
-
-        sceneEl.addEventListener('ar-hit-test-start', () => reticle.setAttribute('visible', true));
-        sceneEl.addEventListener('ar-hit-test-stop', () => reticle.setAttribute('visible', false));
-        
-        // --- LÓGICA DA UI E ESTADOS ---
-        toggleDrawBtn.addEventListener('click', () => {
-            if (appState === 'scanning') {
-                appState = 'drawing';
-                drawingOverlay.style.display = 'block';
-                setupDrawingCanvas();
-                toggleDrawBtn.style.display = 'none';
-                infoBox.style.display = 'none';
-                reticle.setAttribute('visible', false);
-                sceneEl.setAttribute('ar-hit-test', 'enabled', false);
-            }
-        });
-
-        document.getElementById('cancel-draw-btn').addEventListener('click', () => {
-            appState = 'scanning';
-            drawingOverlay.style.display = 'none';
-            toggleDrawBtn.style.display = 'block';
-            infoBox.style.display = 'block';
-        });
-
-        document.getElementById('confirm-draw-btn').addEventListener('click', () => {
-            appState = 'placing';
-            drawingOverlay.style.display = 'none';
-            paintCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
-            paintCtx.drawImage(drawingCanvas, 0, 0, paintCanvas.width, paintCanvas.height);
-            artPreviewPlane.setAttribute('material', 'src', '#paint-canvas');
-            artPreview.setAttribute('visible', true);
-            sceneEl.setAttribute('ar-hit-test', 'enabled', true);
-            infoBox.textContent = 'Toque em uma superfície para posicionar sua arte';
-            infoBox.style.display = 'block';
-        });
-
-        // --- LÓGICA DE DESENHO 2D ---
-        function setupDrawingCanvas() {
-            drawingCanvas.width = window.innerWidth;
-            drawingCanvas.height = window.innerHeight;
-            drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-        }
-        function startPaint(e) { isPainting = true; draw(e); }
-        function stopPaint() { isPainting = false; drawingCtx.beginPath(); }
-        function draw(e) {
-            if (!isPainting) return;
-            e.preventDefault();
-            const rect = drawingCanvas.getBoundingClientRect();
-            const x = (e.clientX || e.touches[0].clientX) - rect.left;
-            const y = (e.clientY || e.touches[0].clientY) - rect.top;
-            drawingCtx.lineWidth = document.getElementById('brush-size').value;
-            drawingCtx.lineCap = 'round';
-            drawingCtx.strokeStyle = document.getElementById('color-picker').value;
-            drawingCtx.lineTo(x, y);
-            drawingCtx.stroke();
-            drawingCtx.beginPath();
-            drawingCtx.moveTo(x, y);
-        }
-        drawingCanvas.addEventListener('mousedown', startPaint);
-        drawingCanvas.addEventListener('mouseup', stopPaint);
-        drawingCanvas.addEventListener('mousemove', draw);
-        drawingCanvas.addEventListener('touchstart', startPaint, { passive: false });
-        drawingCanvas.addEventListener('touchend', stopPaint);
-        drawingCanvas.addEventListener('touchmove', draw, { passive: false });
-        
-        // --- LÓGICA DE POSICIONAMENTO E SALVAMENTO ---
-        
-        // Atualiza a pré-visualização da arte para seguir o retículo
-        sceneEl.addEventListener('ar-hit-test-update', () => {
-            if (appState === 'placing') {
-                artPreview.setAttribute('position', reticle.getAttribute('position'));
-                artPreview.object3D.quaternion.copy(reticle.object3D.quaternion);
-            }
-        });
-
-        // "Cola" a arte no mundo ao clicar
-        sceneEl.addEventListener('click', () => {
-            if (appState === 'placing' && reticle.getAttribute('visible')) {
-                const textureData = paintCanvas.toDataURL('image/png');
-                const position = reticle.getAttribute('position');
-                const rotation = reticle.getAttribute('rotation');
-                
-                placeArt(textureData, position, rotation);
-                saveArt(textureData, position, rotation);
-
-                // Retorna ao modo de escaneamento
-                appState = 'scanning';
-                artPreview.setAttribute('visible', false);
-                sceneEl.setAttribute('ar-hit-test', 'enabled', false);
-                toggleDrawBtn.style.display = 'block';
-                infoBox.textContent = 'Mova o celular para detectar superfícies';
-            }
-        });
-        
-        function placeArt(texture, position, rotation) {
-            const plane = document.createElement('a-plane');
-            plane.setAttribute('material', `src: ${texture}; transparent: true; shader: flat;`);
-            plane.setAttribute('width', 1);
-            plane.setAttribute('height', 1);
-            plane.setAttribute('position', position);
-            plane.setAttribute('rotation', rotation);
-            sceneEl.appendChild(plane);
-        }
-
-        function saveArt(textureData, position, rotation) {
-            navigator.geolocation.getCurrentPosition(
-                (gps) => {
-                    const artData = {
-                        gps: { lat: gps.coords.latitude, lon: gps.coords.longitude },
-                        pos: position,
-                        rot: { x: rotation.x, y: rotation.y, z: rotation.z },
-                        texture: textureData
-                    };
-                    const savedArt = JSON.parse(localStorage.getItem('webxr_surface_art') || '[]');
-                    savedArt.push(artData);
-                    localStorage.setItem('webxr_surface_art', JSON.stringify(savedArt));
-                    alert('Arte posicionada e salva no mundo!');
-                },
-                () => {
-                    alert('GPS não encontrado. A arte foi posicionada, mas não pôde ser salva para outros usuários.');
-                }
-            );
-        }
-
-        function loadSavedArt() {
-            navigator.geolocation.getCurrentPosition((gps) => {
-                const currentLat = gps.coords.latitude;
-                const currentLon = gps.coords.longitude;
-                const savedArt = JSON.parse(localStorage.getItem('webxr_surface_art') || '[]');
-                const nearbyArt = savedArt.filter(art => getDistance(currentLat, currentLon, art.gps.lat, art.gps.lon) < 2); // Raio de 2km
-
-                nearbyArt.forEach(artData => placeArt(artData.texture, artData.pos, artData.rot));
-            });
-        }
-        
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        // --- REMOÇÃO FORÇADA DO BOTÃO DE VR ---
-        sceneEl.addEventListener("loaded", () => {
-            const vrButton = document.querySelector(".a-enter-vr-button");
-            if (vrButton) vrButton.remove();
-        });
+  // 🔹 3. Salvar desenho no Firestore com coordenadas GPS
+  function saveDrawing() {
+    if (!navigator.geolocation) return alert("GPS não suportado");
+    navigator.geolocation.getCurrentPosition(pos => {
+      const dataURL = canvas.toDataURL();
+      db.collection("artes").add({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        image: dataURL,
+        timestamp: Date.now()
+      }).then(() => {
+        alert("Arte salva!");
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      });
     });
-    </script>
+  }
+
+  // 🔹 4. Carregar desenhos próximos
+  navigator.geolocation.getCurrentPosition(pos => {
+    db.collection("artes").get().then(snapshot => {
+      snapshot.forEach(doc => {
+        const art = doc.data();
+        const dist = Math.sqrt(
+          Math.pow(art.lat - pos.coords.latitude, 2) +
+          Math.pow(art.lng - pos.coords.longitude, 2)
+        );
+        if (dist < 0.0005) { // raio de ~50 metros
+          renderARImage(art.image, art.lat, art.lng);
+        }
+      });
+    });
+  });
+
+  // 🔹 5. Renderizar imagem no AR
+  function renderARImage(imgURL, lat, lng) {
+    const scene = document.querySelector('a-scene');
+    const entity = document.createElement('a-image');
+    entity.setAttribute('src', imgURL);
+    entity.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng}`);
+    entity.setAttribute('look-at', '[gps-camera]');
+    entity.setAttribute('scale', '5 5 5');
+    scene.appendChild(entity);
+
+    // GPS camera
+    if (!document.querySelector('[gps-camera]')) {
+      const camera = document.createElement('a-camera');
+      camera.setAttribute('gps-camera', 'minDistance: 1');
+      camera.setAttribute('rotation-reader', '');
+      scene.appendChild(camera);
+    }
+  }
+</script>
+
 </body>
 </html>
